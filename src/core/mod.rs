@@ -1,2 +1,3 @@
-pub(crate) mod message;
-pub(crate) mod error;
+pub mod message;
+pub mod socket;
+pub mod tunnel;

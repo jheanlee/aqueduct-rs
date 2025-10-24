@@ -1,5 +1,5 @@
 #[derive(Debug, Copy, Clone)]
-pub(crate) enum MessageError {
+pub enum MessageError {
   MessageEmpty,
   MessageTooLong,
   InvalidType,
