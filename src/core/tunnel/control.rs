@@ -1,122 +1,155 @@
+use std::ops::DerefMut;
 use std::sync::Arc;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use tokio::select;
 use tokio::sync::watch;
 use crate::config::timeout::TUNNEL_CLIENT_HEARTBEAT_TIMEOUT;
-use crate::core::message::message::{Message, MessageType};
-use crate::core::tunnel::error::TunnelError;
-use crate::core::tunnel::model::{Flags, TunnelClient};
+use crate::core::message::message::{Message, MessageType, ProxyMessage, ServiceMessage};
+use crate::core::socket::io::{read_message, send_message};
+use crate::core::tunnel::model::{ClientType, Flags, TunnelClient, TunnelStatus};
+use crate::core::tunnel::proxy::{tunnel_client_proxy, tunnel_client_proxy_control};
 
-pub async fn tunnel_client_control(mut flags: Flags, tunnel_client: Arc<TunnelClient>) -> Result<(), TunnelError> {
+pub async fn tunnel_client_control(flags: Flags, tunnel_client: Arc<TunnelClient>, tunnel_status: Arc<TunnelStatus>) {
+  let mut client_type: Option<ClientType> = None;
   let mut buffer = [0u8; 1024];
   let (heartbeat_tx, heartbeat_rx) = watch::channel(false);
 
-  let tunnel_client_heartbeat_thread = tokio::spawn(
-    tunnel_client_heartbeat(
-      flags.clone(),
-      tunnel_client.clone(),
-      (heartbeat_tx.clone(), heartbeat_rx)
-    )
-  );
+  let mut tunnel_client_heartbeat_thread = None;
+  let mut tunnel_client_proxy_control_thread = None;
+  let mut tunnel_client_proxy_thread = None;
 
   loop {
     let read_future = async {
-      buffer = [0u8; 1024];
       let mut guard = tunnel_client.stream.lock().await;
-      guard.read(buffer.as_mut()).await
+      read_message(guard.deref_mut(), buffer.as_mut()).await
     };
 
     select! {
       result = read_future => {
         match result {
-          Ok(bytes_read) => {
-            let message = Message::from_bytes(buffer.as_ref(), bytes_read);
-            if let Ok(message) = message {
-              match message.message_type {
-                MessageType::Heartbeat => {
-                  heartbeat_tx.send_replace(true);
-                },
-                MessageType::Service => {
+          Ok(message) => {
+            match message.message_type {
+              MessageType::Heartbeat => {
+                heartbeat_tx.send_replace(true);
+              },
+              MessageType::Service => {
+                match serde_json::from_str::<ServiceMessage>(message.message_string.as_str()) {
+                  Ok(client_info) => {
+                    //  TODO authentication
+                    client_type = Some(ClientType::Service);
+                    tunnel_client_heartbeat_thread = Some(tokio::spawn(
+                      tunnel_client_heartbeat(
+                        flags.clone(),
+                        tunnel_client.clone(),
+                        (heartbeat_tx.clone(), heartbeat_rx.clone())
+                      )
+                    ));
+                    tunnel_client_proxy_control_thread = Some(tokio::spawn(
+                      tunnel_client_proxy_control(
+                        flags.clone(),
+                        tunnel_client.clone(),
+                        tunnel_status.clone()
+                      )
+                    ));
+                  }
+                  Err(_) => {
 
+                    }
+                  }
                 },
-                MessageType::Proxy => {
-
-                },
-                MessageType::Authentication => {
-
-                },
-                MessageType::Port => {
-
-                },
-                MessageType::Close => {
-                  flags.client_kill_tx.send_replace(true);
-                  break;
+              MessageType::Proxy => {
+                match serde_json::from_str::<ProxyMessage>(message.message_string.as_str()) {
+                  Ok(client_info) => {
+                    if let Some(proxy_client) = tunnel_status.proxy_queue.write().await.remove(&client_info.proxy_id) {
+                      client_type = Some(ClientType::Proxy);
+                      tunnel_client_proxy_thread = Some(tokio::spawn(
+                        tunnel_client_proxy(
+                          flags.clone(),
+                          tunnel_client.clone(),
+                          proxy_client,
+                          tunnel_status.clone()
+                        )
+                      ));
+                    } else {
+                      //  TODO log denied access
+                      let message = Message::new(MessageType::Error, String::from("access denied"));
+                      let _res = send_message(tunnel_client.stream.lock().await.deref_mut(), &message).await;
+                    }
+                    break;
+                  }
+                  Err(_) => {}
                 }
-                MessageType::Error => {
-                  flags.client_kill_tx.send_replace(true);
-                  break;
-                }
+              },
+              MessageType::Port => {
+
+              },
+              MessageType::Close => {
+                flags.local_cancellation_token.cancel();
+                break;
               }
-            } else {
-              flags.client_kill_tx.send_replace(true);
-              break;
+              MessageType::Error => {
+                flags.local_cancellation_token.cancel();
+                break;
+              }
             }
-          },
-          Err(_error) => {
-            //  TODO log
-            flags.client_kill_tx.send_replace(true);
+          }
+          Err(error) => {
+            flags.local_cancellation_token.cancel();
             break;
-          },
+          }
         }
       },
-      global_changed = flags.global_kill_rx.changed() => {
-        if global_changed.is_err() || *flags.global_kill_rx.borrow() {
-          flags.client_kill_tx.send_replace(true);
-          break;
-        } else {
-          continue;
-        }
+      _global_cancalled = flags.global_cancellation_token.cancelled() => {
+        flags.local_cancellation_token.cancel();
+        break;
       },
-      client_changed = flags.client_kill_rx.changed() => {
-        if client_changed.is_err() || *flags.client_kill_rx.borrow() {
-          break;
-        } else {
-          continue;
-        }
+      _client_cancealled = flags.local_cancellation_token.cancelled() => {
+        break;
       },
     }
   }
-  
-  let _ = tunnel_client_heartbeat_thread.await;
 
+  if let Some(thread) = tunnel_client_proxy_thread {
+    let _ = thread.await;
+  }
+
+  if let Some(thread) = tunnel_client_heartbeat_thread {
+    let _ = thread.await;
+  }
+
+  if let Some(thread) = tunnel_client_proxy_control_thread {
+    let _ = thread.await;
+  }
+
+  let _shutdown_status = tunnel_client.stream.lock().await.shutdown().await;
   //  TODO log("Connection with client {client.addr} has ended")
-
-  Ok(())
 }
 
-pub async fn tunnel_client_heartbeat(mut flags: Flags, tunnel_client: Arc<TunnelClient>, (heartbeat_tx, mut heartbeat_rx): (watch::Sender<bool>, watch::Receiver<bool>)) {
+pub async fn tunnel_client_heartbeat(flags: Flags, tunnel_client: Arc<TunnelClient>, (heartbeat_tx, mut heartbeat_rx): (watch::Sender<bool>, watch::Receiver<bool>)) {
   let message = Message::new(MessageType::Heartbeat, String::new());
 
   loop {
+    //  wait for heartbeat
     let value = select! {
       heartbeat_changed = heartbeat_rx.changed() => {
         if !heartbeat_changed.is_err() {
           Some(*heartbeat_rx.borrow())
         } else {
-          flags.client_kill_tx.send_replace(true);
+          flags.local_cancellation_token.cancel();
           None
         }
       },
-      _global_changed = flags.global_kill_rx.changed() => None,
-      _client_changed = flags.client_kill_rx.changed() => None,
+      _global_cancalled = flags.global_cancellation_token.cancelled() => None,
+      _client_cancealled = flags.local_cancellation_token.cancelled() => None,
       _sleep = tokio::time::sleep(TUNNEL_CLIENT_HEARTBEAT_TIMEOUT) => None
     };
 
+    //  sleep until next cycle
     match value {
       Some(value) if value => {
         select! {
-          _global_changed = flags.global_kill_rx.changed() => { break; },
-          _client_changed = flags.client_kill_rx.changed() => { break; },
+          _global_cancalled = flags.global_cancellation_token.cancelled() => { break; },
+          _client_cancealled = flags.local_cancellation_token.cancelled() => { break; },
           _sleep = tokio::time::sleep(TUNNEL_CLIENT_HEARTBEAT_TIMEOUT) => {},
         }
       }
@@ -125,11 +158,12 @@ pub async fn tunnel_client_heartbeat(mut flags: Flags, tunnel_client: Arc<Tunnel
       }
     }
 
+    //  send heartbeat
     let write_future = async {
       let mut guard = tunnel_client.stream.lock().await;
       heartbeat_tx.send_replace(false);
       heartbeat_rx.borrow_and_update();
-      guard.write_all(message.to_vec().as_slice()).await
+      send_message(guard.deref_mut(), &message).await
     };
 
     select! {
@@ -138,13 +172,13 @@ pub async fn tunnel_client_heartbeat(mut flags: Flags, tunnel_client: Arc<Tunnel
           Ok(_) => {},
           Err(_error) => {
             //  TODO log
-            flags.client_kill_tx.send_replace(true);
+            flags.local_cancellation_token.cancel();
             break;
           }
         }
       },
-      _global_changed = flags.global_kill_rx.changed() => { break; },
-      _client_changed = flags.client_kill_rx.changed() => { break; },
+      _global_cancalled = flags.global_cancellation_token.cancelled() => { break; },
+      _client_cancealled = flags.local_cancellation_token.cancelled() => { break; },
     }
   }
 }

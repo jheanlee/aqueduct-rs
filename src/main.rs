@@ -1,13 +1,16 @@
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use clap::Parser;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::pki_types::pem::PemObject;
 use tokio::net::TcpListener;
-use tokio::sync::{watch, Mutex};
+use tokio::sync::{Mutex, RwLock};
+use tokio::task::JoinSet;
 use tokio_rustls::TlsAcceptor;
+use tokio_util::sync::CancellationToken;
 use crate::common::args::Args;
 use crate::core::tunnel::control::tunnel_client_control;
-use crate::core::tunnel::model::{Flags, TunnelClient};
+use crate::core::tunnel::model::{Flags, TunnelClient, TunnelStatus};
 
 mod common;
 mod core;
@@ -24,36 +27,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     .collect::<Result<Vec<_>, _>>()?;
   let key = PrivateKeyDer::from_pem_file(private_key_path)?;
 
-  let config = rustls::ServerConfig::builder()
+  let config = Arc::new(rustls::ServerConfig::builder()
     .with_no_client_auth()
-    .with_single_cert(cert, key)?;
-  let tls_acceptor = TlsAcceptor::from(Arc::new(config));
+    .with_single_cert(cert, key)?);
+  let tls_acceptor = TlsAcceptor::from(config);
   let tcp_listener = TcpListener::bind(format!("{}:{}", args.host_addr, args.host_port)).await?;
 
-  let (global_kill_tx, global_kill_rx) = watch::channel(false);
+  let cancellation_token = CancellationToken::new();
+  let tunnel_status = Arc::new(TunnelStatus {
+    host: args.host_addr,
+    available_ports: RwLock::new(VecDeque::new()),
+    proxy_queue: RwLock::new(HashMap::new()),
+  });
+  let mut threads = JoinSet::new();
   
   loop {
     let (stream, client_addr) = tcp_listener.accept().await?;
     let tls_acceptor = tls_acceptor.clone();
     let tls_stream = tls_acceptor.accept(stream).await?;  //  TODO check error values
     // let (stream_reader, stream_writer) = io::split(tls_stream);
-
-    let (client_kill_tx, client_kill_rx) = watch::channel(false);
-
-    let _tunnel_client_control_thread = tokio::spawn(
+    
+    threads.spawn(
       tunnel_client_control(
         Flags {
-          global_kill_rx: global_kill_rx.clone(),
-          client_kill_rx,
-          client_kill_tx,
+          global_cancellation_token: cancellation_token.clone(),
+          local_cancellation_token: CancellationToken::new(),
         },
+
         Arc::new(TunnelClient { 
           stream: Mutex::new(tls_stream), 
           // stream_writer: Mutex::new(stream_writer), 
           // stream_reader: Mutex::new(stream_reader), 
-          addr: client_addr
-        })
+          addr: client_addr,
+        }),
+
+        tunnel_status.clone()
       )
     );
   }
+
+  cancellation_token.cancel();
+  threads.join_all().await;
 }

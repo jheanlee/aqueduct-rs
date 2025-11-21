@@ -7,7 +7,7 @@ pub enum MessageType {
   Heartbeat,
   Service,    //  service connection
   Proxy,      //  proxy connection
-  Authentication,
+  // Authentication,
 
   Port,
 
@@ -20,7 +20,7 @@ impl MessageType {
       Self::Heartbeat => 0x10,
       Self::Service => 0x11,
       Self::Proxy => 0x12,
-      Self::Authentication => 0x13,
+      // Self::Authentication => 0x13,
       Self::Port => 0x20,
       Self::Close => 0xf0,
       Self::Error => 0xff,
@@ -32,7 +32,7 @@ impl MessageType {
       0x10 => Ok(Self::Heartbeat),
       0x11 => Ok(Self::Service),
       0x12 => Ok(Self::Proxy),
-      0x13 => Ok(Self::Authentication),
+      // 0x13 => Ok(Self::Authentication),
       0x20 => Ok(Self::Port),
       0xf0 => Ok(Self::Close),
       0xff => Ok(Self::Error),
@@ -48,14 +48,18 @@ pub struct Message {
 
 impl Message {
   pub fn new(message_type: MessageType, message_string: String) -> Self {
-    Self {message_type, message_string}
+    Self { message_type, message_string }
   }
 
-  pub fn to_vec(&self) -> Vec<u8> {
-    let mut buffer: Vec<u8> = Vec::new();
-    buffer.push(self.message_type.as_u8());
-    buffer.extend(self.message_string.as_bytes());
-    buffer
+  pub fn to_vec(&self) -> Result<Vec<u8>, MessageError> {
+    if self.message_string.len() <= MAX_MESSAGE_LEN - 1 {
+      let mut buffer: Vec<u8> = Vec::new();
+      buffer.push(self.message_type.as_u8());
+      buffer.extend(self.message_string.as_bytes());
+      Ok(buffer)
+    } else {
+      Err(MessageTooLong)
+    }
   }
 
   pub fn from_vec(vec: &Vec<u8>) -> Result<Self, MessageError> {
@@ -95,4 +99,14 @@ impl Message {
       Err(MessageEmpty)
     }
   }
+}
+
+#[derive(serde::Deserialize)]
+pub struct ServiceMessage {
+  pub token: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ProxyMessage {
+  pub proxy_id: String,
 }

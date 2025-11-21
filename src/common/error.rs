@@ -1,7 +1,7 @@
 use crate::core::message::error::MessageError;
 use crate::core::tunnel::error::TunnelError;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub enum Error {
   MessageError(MessageError),
   TunnelError(TunnelError)
