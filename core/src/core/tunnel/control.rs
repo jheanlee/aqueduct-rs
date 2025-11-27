@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio::select;
 use tokio::sync::watch;
-use crate::config::timeout::TUNNEL_CLIENT_HEARTBEAT_TIMEOUT;
+use crate::config::tunnel::TUNNEL_CLIENT_HEARTBEAT_TIMEOUT;
 use crate::core::message::message::{Message, MessageType, ProxyMessage, ServiceMessage};
 use crate::core::socket::io::{read_message, send_message};
 use crate::core::tunnel::model::{ClientType, Flags, TunnelClient, TunnelStatus};
