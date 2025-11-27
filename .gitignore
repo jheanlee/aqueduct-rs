@@ -6,6 +6,7 @@ target
 node_modules
 migration/dist
 /migration/src/migrations/.snapshot-aqueduct.json
+/migration/temp
 
 .idea
 .DS_Store

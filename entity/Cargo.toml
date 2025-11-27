@@ -1,0 +1,12 @@
+[package]
+name = "aqueduct-rs-entity"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "entity"
+path = "src/lib.rs"
+
+[dependencies]
+sea-orm = { version = "2.0.0-rc.19", features = ["sqlx-postgres", "runtime-tokio-native-tls", "macros"] }
+serde = { version = "1.0.223", features = ["derive"] }

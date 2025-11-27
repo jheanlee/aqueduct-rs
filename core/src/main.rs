@@ -47,7 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     //  accept connection
     let (stream, client_addr) = tcp_listener.accept().await?;
 
-    //  TODO check white list
+    //  TODO check whitelist
 
     //  tls
     let tls_acceptor = tls_acceptor.clone();
