@@ -1,5 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
+use sea_orm::DatabaseConnection;
 use tokio::net::TcpStream;
 use tokio::sync::{Mutex, RwLock};
 use tokio_rustls::server::TlsStream;
@@ -26,7 +27,8 @@ pub struct TunnelClient {
 pub struct TunnelStatus {
   pub host: String,
   pub available_ports: RwLock<VecDeque<u16>>,
-  pub proxy_queue: RwLock<HashMap<String, ProxyClient>>
+  pub proxy_queue: RwLock<HashMap<String, ProxyClient>>,
+  pub db_connection: DatabaseConnection,
 }
 
 pub struct ProxyClient {

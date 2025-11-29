@@ -2,6 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::pki_types::pem::PemObject;
+use sea_orm::Database;
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinSet;
@@ -14,11 +15,24 @@ use crate::core::tunnel::model::{Flags, TunnelClient, TunnelStatus};
 mod common;
 mod core;
 mod config;
+mod orm;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
   let _ = dotenv::dotenv();
   let config = read_config().map_err(|error| { error.to_string() })?;
+
+  //  database
+  let db_connection = Database::connect(
+    format!(
+      "postgres://{}:{}@{}:{}/{}",
+      config.db_username,
+      config.db_password,
+      config.db_host,
+      config.db_port,
+      config.db_name
+    )
+  ).await?;
 
   //  tls credentials
   let cert = CertificateDer::pem_file_iter(config.tls_cert_path)?
@@ -34,6 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     host: config.tunnel_host.ip().to_string(),
     available_ports: RwLock::new(VecDeque::new()),
     proxy_queue: RwLock::new(HashMap::new()),
+    db_connection: db_connection
   });
 
   let mut threads = JoinSet::new();

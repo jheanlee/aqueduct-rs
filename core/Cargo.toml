@@ -7,9 +7,9 @@ edition = "2024"
 aqueduct-rs-entity = { path = "../entity" }
 
 clap = { version = "4.5.48", features = ["derive"] }
-dashmap = "6.1.0"
 dotenv = "0.15.0"
 nanoid = "0.4.0"
+openssl = "0.10.75"
 rustls = "0.23.32"
 sea-orm = "2.0.0-rc.19"
 serde = { version = "1.0.228", features = ["derive"] }

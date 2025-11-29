@@ -4,10 +4,11 @@ use tokio::io::AsyncWriteExt;
 use tokio::select;
 use tokio::sync::watch;
 use crate::config::tunnel::TUNNEL_CLIENT_HEARTBEAT_TIMEOUT;
-use crate::core::message::message::{Message, MessageType, ProxyMessage, ServiceMessage};
+use crate::core::message::message::{Message, MessageType, ProxyMessage, ServiceAuthType, ServiceMessage};
 use crate::core::socket::io::{read_message, send_message};
 use crate::core::tunnel::model::{ClientType, Flags, TunnelClient, TunnelStatus};
 use crate::core::tunnel::proxy::{tunnel_client_proxy, tunnel_client_proxy_control};
+use crate::orm::user::authenticate_user;
 
 pub async fn tunnel_client_control(flags: Flags, tunnel_client: Arc<TunnelClient>, tunnel_status: Arc<TunnelStatus>) {
   let mut client_type: Option<ClientType> = None;
@@ -34,29 +35,53 @@ pub async fn tunnel_client_control(flags: Flags, tunnel_client: Arc<TunnelClient
               },
               MessageType::Service => {
                 match serde_json::from_str::<ServiceMessage>(message.message_string.as_str()) {
-                  Ok(client_info) => {
-                    //  TODO authentication
-                    client_type = Some(ClientType::Service);
-                    tunnel_client_heartbeat_thread = Some(tokio::spawn(
-                      tunnel_client_heartbeat(
-                        flags.clone(),
-                        tunnel_client.clone(),
-                        (heartbeat_tx.clone(), heartbeat_rx.clone())
-                      )
-                    ));
-                    tunnel_client_proxy_control_thread = Some(tokio::spawn(
-                      tunnel_client_proxy_control(
-                        flags.clone(),
-                        tunnel_client.clone(),
-                        tunnel_status.clone()
-                      )
-                    ));
-                  }
-                  Err(_) => {
-
+                  Ok(service_message) => {
+                    let authorized = match service_message.auth_type {
+                      ServiceAuthType::TOKEN if service_message.auth_data.len() == 1 => {
+                        todo!();
+                        true
+                      },
+                      ServiceAuthType::PASSWORD if service_message.auth_data.len() == 2 => {
+                        authenticate_user(&tunnel_status.db_connection, &service_message.auth_data[0], &service_message.auth_data[1])
+                          .await
+                          .unwrap_or(false)
+                      },
+                      _ => false
+                    };
+                    
+                    if authorized {
+                      client_type = Some(ClientType::Service);
+                      tunnel_client_heartbeat_thread = Some(tokio::spawn(
+                        tunnel_client_heartbeat(
+                          flags.clone(),
+                          tunnel_client.clone(),
+                          (heartbeat_tx.clone(), heartbeat_rx.clone())
+                        )
+                      ));
+                      tunnel_client_proxy_control_thread = Some(tokio::spawn(
+                        tunnel_client_proxy_control(
+                          flags.clone(),
+                          tunnel_client.clone(),
+                          tunnel_status.clone()
+                        )
+                      ));
+                    } else {
+                      //  TODO log denied access
+                      let message = Message::new(MessageType::Error, "access denied".to_string());
+                      let _res = send_message(tunnel_client.stream.lock().await.deref_mut(), &message).await;
+                      flags.local_cancellation_token.cancel();
+                      break;
                     }
                   }
-                },
+                  Err(_) => {
+                    //  TODO log denied access
+                    let message = Message::new(MessageType::Error, "access denied".to_string());
+                    let _res = send_message(tunnel_client.stream.lock().await.deref_mut(), &message).await;
+                    flags.local_cancellation_token.cancel();
+                    break;
+                  }
+                }
+              },
               MessageType::Proxy => {
                 match serde_json::from_str::<ProxyMessage>(message.message_string.as_str()) {
                   Ok(client_info) => {
@@ -74,6 +99,7 @@ pub async fn tunnel_client_control(flags: Flags, tunnel_client: Arc<TunnelClient
                       //  TODO log denied access
                       let message = Message::new(MessageType::Error, String::from("access denied"));
                       let _res = send_message(tunnel_client.stream.lock().await.deref_mut(), &message).await;
+                      flags.local_cancellation_token.cancel();
                     }
                     break;
                   }

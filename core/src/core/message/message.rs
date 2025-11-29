@@ -103,7 +103,14 @@ impl Message {
 
 #[derive(serde::Deserialize)]
 pub struct ServiceMessage {
-  pub token: String,
+  pub auth_type: ServiceAuthType,
+  pub auth_data: Vec<String>    //  {token} or {username, password}
+}
+
+#[derive(serde::Deserialize)]
+pub enum ServiceAuthType {
+  TOKEN,
+  PASSWORD
 }
 
 #[derive(serde::Deserialize)]
