@@ -10,7 +10,11 @@ use crate::core::socket::io::send_message;
 use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::model::{Flags, ProxyClient, TunnelClient, TunnelStatus};
 
-pub async fn tunnel_client_proxy_control(flags: Flags, tunnel_client: Arc<TunnelClient>, tunnel_status: Arc<TunnelStatus>) -> Result<(), TunnelError> {
+pub async fn tunnel_client_proxy_control(
+  flags: Flags,
+  tunnel_client: Arc<TunnelClient>,
+  tunnel_status: Arc<TunnelStatus>,
+) -> Result<(), TunnelError> {
   //  assign a port
   let mut tcp_listener = None;
   {
@@ -57,7 +61,10 @@ pub async fn tunnel_client_proxy_control(flags: Flags, tunnel_client: Arc<Tunnel
                     external_client_stream: external_client_stream,
                     external_client_addr: external_client_addr,
                     proxy_control_client_addr: tunnel_client.addr.clone(),
-                    proxy_control_server_addr: SocketAddr::new(tunnel_status.host.parse().unwrap(), port),
+                    proxy_control_server_addr: SocketAddr::new(
+                      tunnel_status.host.parse().unwrap_or_else(|_| {unreachable!()}),
+                      port
+                    ),
                   }
                 );
               }

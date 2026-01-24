@@ -4,13 +4,17 @@ use tokio::io::AsyncWriteExt;
 use tokio::select;
 use tokio::sync::watch;
 use crate::config::tunnel::TUNNEL_CLIENT_HEARTBEAT_TIMEOUT;
-use crate::core::message::message::{Message, MessageType, ProxyMessage, ServiceAuthType, ServiceMessage};
+use crate::core::message::message::{Message, MessageType, ProxyMessage, ServiceAuth, ServiceMessage};
 use crate::core::socket::io::{read_message, send_message};
 use crate::core::tunnel::model::{ClientType, Flags, TunnelClient, TunnelStatus};
 use crate::core::tunnel::proxy::{tunnel_client_proxy, tunnel_client_proxy_control};
 use crate::orm::user::authenticate_user;
 
-pub async fn tunnel_client_control(flags: Flags, tunnel_client: Arc<TunnelClient>, tunnel_status: Arc<TunnelStatus>) {
+pub async fn tunnel_client_control(
+  flags: Flags,
+  tunnel_client: Arc<TunnelClient>,
+  tunnel_status: Arc<TunnelStatus>,
+) {
   let mut client_type: Option<ClientType> = None;
   let mut buffer = [0u8; 1024];
   let (heartbeat_tx, heartbeat_rx) = watch::channel(false);
@@ -36,17 +40,16 @@ pub async fn tunnel_client_control(flags: Flags, tunnel_client: Arc<TunnelClient
               MessageType::Service => {
                 match serde_json::from_str::<ServiceMessage>(message.message_string.as_str()) {
                   Ok(service_message) => {
-                    let authorized = match service_message.auth_type {
-                      ServiceAuthType::TOKEN if service_message.auth_data.len() == 1 => {
+                    let authorized = match service_message.auth {
+                      ServiceAuth::Token { token } => {
                         todo!();
                         true
                       },
-                      ServiceAuthType::PASSWORD if service_message.auth_data.len() == 2 => {
-                        authenticate_user(&tunnel_status.db_connection, &service_message.auth_data[0], &service_message.auth_data[1])
+                      ServiceAuth::Password { username, password } => {
+                        authenticate_user(&tunnel_status.db_connection, username.as_str(), password.as_str())
                           .await
                           .unwrap_or(false)
                       },
-                      _ => false
                     };
                     
                     if authorized {
@@ -98,6 +101,7 @@ pub async fn tunnel_client_control(flags: Flags, tunnel_client: Arc<TunnelClient
                     } else {
                       //  TODO log denied access
                       let message = Message::new(MessageType::Error, String::from("access denied"));
+                      //  TODO error structure, return id
                       let _res = send_message(tunnel_client.stream.lock().await.deref_mut(), &message).await;
                       flags.local_cancellation_token.cancel();
                     }
@@ -107,7 +111,9 @@ pub async fn tunnel_client_control(flags: Flags, tunnel_client: Arc<TunnelClient
                 }
               },
               MessageType::Port => {
-
+                //  does not occur under normal circumstances
+                flags.local_cancellation_token.cancel();
+                break;
               },
               MessageType::Close => {
                 flags.local_cancellation_token.cancel();
