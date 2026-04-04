@@ -4,6 +4,8 @@ use std::net::SocketAddr;
 pub struct Args {
   pub host: Option<SocketAddr>,
   #[arg(long)]
+  pub tunnel_allowed_ports: Option<String>,
+  #[arg(long)]
   pub tls_cert: Option<String>,
   #[arg(long)]
   pub tls_private_key: Option<String>,

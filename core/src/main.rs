@@ -65,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
   let cancellation_token = CancellationToken::new();
   let tunnel_status = Arc::new(TunnelStatus {
     host: config.tunnel_host.ip().to_string(),
-    available_ports: RwLock::new(VecDeque::new()),
+    available_ports: RwLock::new(config.tunnel_allowed_ports),
     proxy_queue: RwLock::new(HashMap::new()),
     db_connection: db_connection
   });

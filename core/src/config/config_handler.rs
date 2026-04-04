@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use clap::Parser;
@@ -7,6 +8,7 @@ use crate::config::error::ConfigError;
 
 pub struct Config {
   pub tunnel_host: SocketAddr,
+  pub tunnel_allowed_ports: VecDeque<u16>,
 
   pub tls_cert_path: String,
   pub tls_private_key_path: String,
@@ -26,6 +28,7 @@ pub struct Config {
 pub fn read_config() -> Result<Config, ConfigError> {
   let mut config = Config {
     tunnel_host: SocketAddr::from_str("0.0.0.0:30330")?,
+    tunnel_allowed_ports: (51000..=51999).collect(),
     tls_cert_path: "".to_string(),
     tls_private_key_path: "".to_string(),
     db_name: "aqueduct-rs".to_string(),
@@ -47,6 +50,9 @@ pub fn read_config() -> Result<Config, ConfigError> {
   //  environment variable
   if let Ok(tunnel_host) = std::env::var("AQUEDUCT_HOST") {
     config.tunnel_host = tunnel_host.parse()?;
+  }
+  if let Ok(tunnel_allowed_ports) = std::env::var("AQUEDUCT_TUNNEL_ALLOWED_PORTS") {
+    config.tunnel_allowed_ports = parse_port_list(tunnel_allowed_ports.as_str())?.into()
   }
   if let Ok(tls_cert) = std::env::var("AQUEDUCT_TLS_CERT") {
     config.tls_cert_path = tls_cert;
@@ -83,6 +89,9 @@ pub fn read_config() -> Result<Config, ConfigError> {
   let args = Args::parse();
   if let Some(tunnel_host) = args.host {
     config.tunnel_host = tunnel_host;
+  }
+  if let Some(tunnel_allowed_ports) = args.tunnel_allowed_ports {
+    config.tunnel_allowed_ports = parse_port_list(tunnel_allowed_ports.as_str())?.into();
   }
   if let Some(tls_cert) = args.tls_cert {
     config.tls_cert_path = tls_cert;
@@ -126,4 +135,27 @@ pub fn read_config() -> Result<Config, ConfigError> {
   } else {
     Ok(config)
   }
+}
+
+fn parse_port_list(arg_string: &str) -> Result<Vec<u16>, ConfigError> {
+  let mut allowed_ports = Vec::new();
+
+  for entry in arg_string.split(',') {
+    let entry = entry.trim();
+    if entry.is_empty() {
+      continue;
+    }
+
+    if entry.contains('-') {
+      let bounds: Vec<&str> = entry.split('-').collect();
+      let start: u16 = bounds[0].parse()?;
+      let end: u16 = bounds[1].parse()?;
+      allowed_ports.extend(start..=end);
+    } else {
+      let port: u16 = entry.parse()?;
+      allowed_ports.push(port);
+    }
+  }
+
+  Ok(allowed_ports)
 }
