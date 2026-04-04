@@ -1,9 +1,10 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::{Arc, LazyLock};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::pki_types::pem::PemObject;
 use sea_orm::Database;
+use tokio::io;
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinSet;
@@ -87,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
       if let Ok(tls_stream) = tls_acceptor.accept(stream).await {
         log(Level::Info, format!("Connection accepted from {}", client_addr.to_string()).as_str(), "core::main").await;
 
-        // let (stream_rx, stream_wt) = io::split(tls_stream);
+        let (stream_rx, stream_tx) = io::split(tls_stream);
 
         threads.spawn(
           tunnel_client_control(
@@ -96,9 +97,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
               local_cancellation_token: CancellationToken::new(),
             },
             Arc::new(TunnelClient {
-              stream: Mutex::new(tls_stream),
-              // stream_writer: Mutex::new(stream_writer),
-              // stream_reader: Mutex::new(stream_reader),
+              // stream: Mutex::new(tls_stream),
+              stream_tx: Mutex::new(stream_tx),
+              stream_rx: Mutex::new(stream_rx),
               addr: client_addr,
             }),
             tunnel_status.clone()

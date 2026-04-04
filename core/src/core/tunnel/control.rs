@@ -26,7 +26,7 @@ pub async fn tunnel_client_control(
 
   loop {
     let read_future = async {
-      let mut guard = tunnel_client.stream.lock().await;
+      let mut guard = tunnel_client.stream_rx.lock().await;
       read_message(guard.deref_mut(), buffer.as_mut()).await
     };
 
@@ -72,7 +72,7 @@ pub async fn tunnel_client_control(
                     } else {
                       log(Level::Notice, format!("Access from {} denied", tunnel_client.addr.to_string()).as_str(), "core::tunnel::control::tunnel_client_control").await;
                       let message = Message::new(MessageType::Error, "access denied".to_string());
-                      let _res = send_message(tunnel_client.stream.lock().await.deref_mut(), &message).await;
+                      let _res = send_message(tunnel_client.stream_tx.lock().await.deref_mut(), &message).await;
                       flags.local_cancellation_token.cancel();
                       break;
                     }
@@ -80,7 +80,7 @@ pub async fn tunnel_client_control(
                   Err(_) => {
                     log(Level::Notice, format!("Access from {} denied", tunnel_client.addr.to_string()).as_str(), "core::tunnel::control::tunnel_client_control").await;
                     let message = Message::new(MessageType::Error, "access denied".to_string());
-                    let _res = send_message(tunnel_client.stream.lock().await.deref_mut(), &message).await;
+                    let _res = send_message(tunnel_client.stream_tx.lock().await.deref_mut(), &message).await;
                     flags.local_cancellation_token.cancel();
                     break;
                   }
@@ -102,7 +102,7 @@ pub async fn tunnel_client_control(
                     } else {
                       log(Level::Debug, format!("Invalid proxy request from {}", tunnel_client.addr.to_string()).as_str(), "core::tunnel::control::tunnel_client_control").await;
                       let message = Message::new(MessageType::Error, String::from("invalid request"));
-                      let _res = send_message(tunnel_client.stream.lock().await.deref_mut(), &message).await;
+                      let _res = send_message(tunnel_client.stream_tx.lock().await.deref_mut(), &message).await;
                       flags.local_cancellation_token.cancel();
                     }
                     break;
@@ -154,7 +154,7 @@ pub async fn tunnel_client_control(
     let _ = thread.await;
   }
 
-  let _shutdown_status = tunnel_client.stream.lock().await.shutdown().await;
+  let _shutdown_status = tunnel_client.stream_tx.lock().await.shutdown().await;
   log(Level::Info, format!("Connection with {} closed", tunnel_client.addr.to_string()).as_str(), "core::tunnel::control::tunnel_client_control").await;
 }
 
@@ -193,7 +193,7 @@ pub async fn tunnel_client_heartbeat(flags: Flags, tunnel_client: Arc<TunnelClie
 
     //  send heartbeat
     let write_future = async {
-      let mut guard = tunnel_client.stream.lock().await;
+      let mut guard = tunnel_client.stream_tx.lock().await;
       heartbeat_tx.send_replace(false);
       heartbeat_rx.borrow_and_update();
       send_message(guard.deref_mut(), &message).await

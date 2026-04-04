@@ -1,4 +1,4 @@
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::net::TcpStream;
 use tokio_rustls::server::TlsStream;
 use crate::core::message::error::MessageError;
@@ -10,7 +10,7 @@ pub enum Error {
   IoError(std::io::Error),
 }
 
-pub async fn read_message(stream: &mut TlsStream<TcpStream>, buffer: &mut [u8]) -> Result<Message, Error> {
+pub async fn read_message(stream: &mut ReadHalf<TlsStream<TcpStream>>, buffer: &mut [u8]) -> Result<Message, Error> {
   buffer.fill(0);
   
   let read_result = stream.read(buffer.as_mut()).await;
@@ -30,7 +30,7 @@ pub async fn read_message(stream: &mut TlsStream<TcpStream>, buffer: &mut [u8]) 
   
 }
 
-pub async fn send_message(stream: &mut TlsStream<TcpStream>, message: &Message) -> Result<usize, Error> {
+pub async fn send_message(stream: &mut WriteHalf<TlsStream<TcpStream>>, message: &Message) -> Result<usize, Error> {
   let message_bytes = message.to_vec();
   
   match message_bytes {
