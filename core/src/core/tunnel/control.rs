@@ -3,6 +3,7 @@ use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio::select;
 use tokio::sync::watch;
+use crate::common::log::{log, Level};
 use crate::config::tunnel::TUNNEL_CLIENT_HEARTBEAT_TIMEOUT;
 use crate::core::message::message::{Message, MessageType, ProxyMessage, ServiceAuth, ServiceMessage};
 use crate::core::socket::io::{read_message, send_message};
@@ -42,7 +43,7 @@ pub async fn tunnel_client_control(
                   Ok(service_message) => {
                     let authorized = match service_message.auth {
                       ServiceAuth::Token { token } => {
-                        todo!();
+                        // TODO;
                         true
                       },
                       ServiceAuth::Password { username, password } => {
@@ -69,7 +70,7 @@ pub async fn tunnel_client_control(
                         )
                       ));
                     } else {
-                      //  TODO log denied access
+                      log(Level::Notice, format!("Access from {} denied", tunnel_client.addr.to_string()).as_str(), "core::tunnel::control::tunnel_client_control").await;
                       let message = Message::new(MessageType::Error, "access denied".to_string());
                       let _res = send_message(tunnel_client.stream.lock().await.deref_mut(), &message).await;
                       flags.local_cancellation_token.cancel();
@@ -77,7 +78,7 @@ pub async fn tunnel_client_control(
                     }
                   }
                   Err(_) => {
-                    //  TODO log denied access
+                    log(Level::Notice, format!("Access from {} denied", tunnel_client.addr.to_string()).as_str(), "core::tunnel::control::tunnel_client_control").await;
                     let message = Message::new(MessageType::Error, "access denied".to_string());
                     let _res = send_message(tunnel_client.stream.lock().await.deref_mut(), &message).await;
                     flags.local_cancellation_token.cancel();
@@ -99,9 +100,8 @@ pub async fn tunnel_client_control(
                         )
                       ));
                     } else {
-                      //  TODO log denied access
-                      let message = Message::new(MessageType::Error, String::from("access denied"));
-                      //  TODO error structure, return id
+                      log(Level::Debug, format!("Invalid proxy request from {}", tunnel_client.addr.to_string()).as_str(), "core::tunnel::control::tunnel_client_control").await;
+                      let message = Message::new(MessageType::Error, String::from("invalid request"));
                       let _res = send_message(tunnel_client.stream.lock().await.deref_mut(), &message).await;
                       flags.local_cancellation_token.cancel();
                     }
@@ -126,6 +126,7 @@ pub async fn tunnel_client_control(
             }
           }
           Err(error) => {
+            log(Level::Debug, format!("Invalid message from {}", tunnel_client.addr.to_string()).as_str(), "core::tunnel::control::tunnel_client_control").await;
             flags.local_cancellation_token.cancel();
             break;
           }
@@ -154,7 +155,7 @@ pub async fn tunnel_client_control(
   }
 
   let _shutdown_status = tunnel_client.stream.lock().await.shutdown().await;
-  //  TODO log("Connection with client {client.addr} has ended")
+  log(Level::Info, format!("Connection with {} closed", tunnel_client.addr.to_string()).as_str(), "core::tunnel::control::tunnel_client_control").await;
 }
 
 pub async fn tunnel_client_heartbeat(flags: Flags, tunnel_client: Arc<TunnelClient>, (heartbeat_tx, mut heartbeat_rx): (watch::Sender<bool>, watch::Receiver<bool>)) {
@@ -202,8 +203,8 @@ pub async fn tunnel_client_heartbeat(flags: Flags, tunnel_client: Arc<TunnelClie
       write_result = write_future => {
         match write_result {
           Ok(_) => {},
-          Err(_error) => {
-            //  TODO log
+          Err(error) => {
+            log(Level::Debug, format!("Unable to send heartbeat to {}: {:?}", tunnel_client.addr.to_string(), error).as_str(), "core::tunnel::control::tunnel_client_heartbeat").await;
             flags.local_cancellation_token.cancel();
             break;
           }

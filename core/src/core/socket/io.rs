@@ -4,6 +4,7 @@ use tokio_rustls::server::TlsStream;
 use crate::core::message::error::MessageError;
 use crate::core::message::message::Message;
 
+#[derive(Debug)]
 pub enum Error {
   MessageError(MessageError),
   IoError(std::io::Error),

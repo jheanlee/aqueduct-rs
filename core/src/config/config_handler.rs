@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
 use clap::Parser;
+use crate::common::log::{Level, LogConfig};
 use crate::config::args::Args;
 use crate::config::error::ConfigError;
 
@@ -15,6 +16,7 @@ pub struct Config {
   pub db_port: u16,
   pub db_username: String,
   pub db_password: String,
+  pub log_config: LogConfig
 }
 
 ///   Reads config from
@@ -31,7 +33,16 @@ pub fn read_config() -> Result<Config, ConfigError> {
     db_port: 5432,
     db_username: "postgres".to_string(),
     db_password: "".to_string(),
+    log_config: LogConfig {
+      stdout_filter: Level::Info.into(),
+      system_filter: Level::Notice.into(),
+      stdout_enabled: true,
+      syslog_enabled: false,
+      oslog_enabled: false,
+    }
   };
+  
+  let mut config_daemon_mode = false;
 
   //  environment variable
   if let Ok(tunnel_host) = std::env::var("AQUEDUCT_HOST") {
@@ -57,6 +68,15 @@ pub fn read_config() -> Result<Config, ConfigError> {
   }
   if let Ok(db_password) = std::env::var("AQUEDUCT_DB_PASSWORD") {
     config.db_password = db_password;
+  }
+  if let Ok(daemon_mode) = std::env::var("AQUEDUCT_DAEMON") {
+    config_daemon_mode = daemon_mode.parse()?;
+  }
+  if let Ok(stdout_filter) = std::env::var("AQUEDUCT_STDOUT_FILTER") {
+    config.log_config.stdout_filter = stdout_filter.parse()?;
+  }
+  if let Ok(log_filter) = std::env::var("AQUEDUCT_LOG_FILTER") {
+    config.log_config.system_filter = log_filter.parse()?;
   }
 
   //  args
@@ -85,7 +105,19 @@ pub fn read_config() -> Result<Config, ConfigError> {
   if let Some(db_password) = args.db_password {
     config.db_password = db_password;
   }
+  if let Some(daemon_mode) = args.daemon {
+    config_daemon_mode = daemon_mode;
+  }
+  if let Some(stdout_filter) = args.stdout_filter {
+    config.log_config.stdout_filter = stdout_filter;
+  }
+  if let Some(log_filter) = args.log_filter {
+    config.log_config.system_filter = log_filter;
+  }
 
+  //  log config
+  crate::common::log::init(config.log_config.stdout_filter, config.log_config.system_filter, !config_daemon_mode, config_daemon_mode)?;
+  
   //  check required field
   if config.tls_cert_path.is_empty() {
     Err(ConfigError::RequiredFieldEmpty(("tls_cert".to_string(), "AQUEDUCT_TLS_CERT".to_string())))

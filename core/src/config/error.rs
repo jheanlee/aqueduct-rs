@@ -2,6 +2,8 @@
 pub enum ConfigError {
   AddrParseError(std::net::AddrParseError),
   ParseIntError(std::num::ParseIntError),
+  ParseBoolError(std::str::ParseBoolError),
+  LogInitError(crate::common::log::Error),
   RequiredFieldEmpty((String, String))
 }
 
@@ -10,7 +12,9 @@ impl std::fmt::Display for ConfigError {
     match self {
       ConfigError::AddrParseError(_) => write!(f, "invalid address format"),
       ConfigError::ParseIntError(error) => write!(f, "{error}"),
-      ConfigError::RequiredFieldEmpty((arg_name, env_name)) => write!(f, "required field must be set: `--{arg_name}` or environment variable `{env_name}`")
+      ConfigError::ParseBoolError(error) => write!(f, "{error}"),
+      ConfigError::RequiredFieldEmpty((arg_name, env_name)) => write!(f, "required field must be set: `--{arg_name}` or environment variable `{env_name}`"),
+      ConfigError::LogInitError(error) => write!(f, "{error}"),
     }
   }
 }
@@ -26,5 +30,17 @@ impl From<std::net::AddrParseError> for ConfigError {
 impl From<std::num::ParseIntError> for ConfigError {
   fn from(value: std::num::ParseIntError) -> Self { 
     ConfigError::ParseIntError(value) 
+  }
+}
+
+impl From<std::str::ParseBoolError> for ConfigError {
+  fn from(value: std::str::ParseBoolError) -> Self {
+    ConfigError::ParseBoolError(value)
+  }
+}
+
+impl From<crate::common::log::Error> for ConfigError {
+  fn from(value: crate::common::log::Error) -> Self {
+    ConfigError::LogInitError(value)
   }
 }

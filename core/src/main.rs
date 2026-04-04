@@ -1,5 +1,6 @@
 use std::collections::{HashMap, VecDeque};
-use std::sync::Arc;
+use std::ops::DerefMut;
+use std::sync::{Arc, LazyLock};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::pki_types::pem::PemObject;
 use sea_orm::Database;
@@ -8,6 +9,7 @@ use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinSet;
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
+use crate::common::log::{log, Level, LogConfig};
 use crate::config::config_handler::read_config;
 use crate::core::tunnel::control::tunnel_client_control;
 use crate::core::tunnel::model::{Flags, TunnelClient, TunnelStatus};
@@ -17,10 +19,25 @@ mod core;
 mod config;
 mod orm;
 
+static LOG_CONFIG: LazyLock<Mutex<LogConfig>> = LazyLock::new(|| {
+  Mutex::new(LogConfig {
+    stdout_filter: Level::Info.into(),
+    system_filter: Level::Notice.into(),
+    stdout_enabled: true,
+    syslog_enabled: false,
+    oslog_enabled: false,
+  })
+});
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
   let _ = dotenv::dotenv();
   let config = read_config().map_err(|error| { error.to_string() })?;
+
+  {
+    let mut log_config = LOG_CONFIG.lock().await;
+    *log_config.deref_mut() = config.log_config;
+  }
 
   //  database
   let db_connection = Database::connect(
@@ -58,8 +75,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
   let tls_acceptor = TlsAcceptor::from(server_config);
   let tcp_listener = TcpListener::bind(config.tunnel_host).await?;
 
-  //  TODO log listen start
-  
+  log(Level::Notice, format!("Started listening on {}", config.tunnel_host.to_string()).as_str(), "core::main").await;
+
   loop {
     //  accept connection
     if let Ok((stream, client_addr)) = tcp_listener.accept().await {
@@ -68,8 +85,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
       //  tls
       let tls_acceptor = tls_acceptor.clone();
       if let Ok(tls_stream) = tls_acceptor.accept(stream).await {
+        log(Level::Info, format!("Connection accepted from {}", client_addr.to_string()).as_str(), "core::main").await;
 
-        // let (stream_reader, stream_writer) = io::split(tls_stream);
+        // let (stream_rx, stream_wt) = io::split(tls_stream);
 
         threads.spawn(
           tunnel_client_control(

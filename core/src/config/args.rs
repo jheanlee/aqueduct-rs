@@ -17,4 +17,10 @@ pub struct Args {
   pub db_username: Option<String>,
   #[arg(long)]
   pub db_password: Option<String>,
+  #[arg(long)]
+  pub daemon: Option<bool>,
+  #[arg(long)]
+  pub stdout_filter: Option<u8>,
+  #[arg(long)]
+  pub log_filter: Option<u8>
 }

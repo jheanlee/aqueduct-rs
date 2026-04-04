@@ -5,9 +5,11 @@ use nanoid::nanoid;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::select;
+use crate::common::log::{log, Level};
 use crate::core::message::message::{Message, MessageType};
 use crate::core::socket::io::send_message;
 use crate::core::tunnel::error::TunnelError;
+use crate::core::tunnel::error::TunnelError::NoPortsAvailable;
 use crate::core::tunnel::model::{Flags, ProxyClient, TunnelClient, TunnelStatus};
 
 pub async fn tunnel_client_proxy_control(
@@ -36,13 +38,13 @@ pub async fn tunnel_client_proxy_control(
       let mut stream = tunnel_client.stream.lock().await;
       let res = send_message(stream.deref_mut(), &message).await;
       if let Err(error) = res {
-        //  TODO log error
+        log(Level::Debug, format!("Unable to send assigned port number to {}: {:?}", tunnel_client.addr.to_string(), error).as_str(), "core::tunnel::proxy::tunnel_client_proxy_control").await;
         flags.local_cancellation_token.cancel();
         Err(error)?;
       }
     }
 
-    //  TODO log listening on new port (debug)
+    log(Level::Info, format!("Tunnel port assigned to client {}, started listening", tunnel_client.addr.to_string()).as_str(), "core::tunnel::proxy::tunnel_client_proxy_control").await;
 
     loop {
       select! {
@@ -73,14 +75,14 @@ pub async fn tunnel_client_proxy_control(
                 let mut stream = tunnel_client.stream.lock().await;
                 let res = send_message(stream.deref_mut(), &message).await;
                 if let Err(error) = res {
-                  //  TODO log write error
+                  log(Level::Warning, format!("Unable to send external connection request to client {}: {:?}", tunnel_client.addr.to_string(), error).as_str(), "core::tunnel::proxy::tunnel_client_proxy_control").await;
                   flags.local_cancellation_token.cancel();
                   break;
                 }
               }
             }
             Err(error) => {
-              //  TODO log error
+              log(Level::Warning, format!("Unable to accept external connection for client {}: {:?}", tunnel_client.addr.to_string(), error).as_str(), "core::tunnel::proxy::tunnel_client_proxy_control").await;
               flags.local_cancellation_token.cancel();
               break;
             }
@@ -93,17 +95,18 @@ pub async fn tunnel_client_proxy_control(
     }
     //  fd closed on drop
   } else {
-    //  TODO log not available
+    log(Level::Warning, "No ports available", "core::tunnel::proxy::tunnel_client_proxy_control").await;
     let message = Message::new(MessageType::Error, "no ports available".to_string());
     let mut stream = tunnel_client.stream.lock().await;
     let _res = send_message(stream.deref_mut(), &message).await;
     flags.local_cancellation_token.cancel();
+    Err(NoPortsAvailable)?
   }
   Ok(())
 }
 
 pub async fn tunnel_client_proxy(flags: Flags, tunnel_client: Arc<TunnelClient>, mut proxy_client: ProxyClient, tunnel_status: Arc<TunnelStatus>) -> Result<(), TunnelError> {
-  //  TODO log proxy started
+  log(Level::Debug, format!("TCP proxying started {} <=> {}", tunnel_client.addr.to_string(), proxy_client.external_client_addr.to_string()).as_str(), "core::tunnel::proxy::tunnel_client_proxy").await;
   let mut tunnel_buffer = [0u8; 32768];
   let mut external_buffer = [0u8; 32768];
 
@@ -124,13 +127,13 @@ pub async fn tunnel_client_proxy(flags: Flags, tunnel_client: Arc<TunnelClient>,
                 //  TODO usage counter
               }
               Err(error) => {
-                //  TODO log closed (debug)
+                log(Level::Debug, format!("Proxy write failed {} => {}: {:?}", tunnel_client.addr.to_string(), proxy_client.external_client_addr.to_string(), error).as_str(), "core::tunnel::proxy::tunnel_client_proxy").await;
                 break;
               }
             }
           }
           Err(error) => {
-            //  TODO log closed (debug)
+            log(Level::Debug, format!("Proxy read failed {} => {}: {:?}", tunnel_client.addr.to_string(), proxy_client.external_client_addr.to_string(), error).as_str(), "core::tunnel::proxy::tunnel_client_proxy").await;
             break;
           }
         }
@@ -145,13 +148,13 @@ pub async fn tunnel_client_proxy(flags: Flags, tunnel_client: Arc<TunnelClient>,
                 //  TODO usage counter
               }
               Err(error) => {
-                //  TODO log closed (debug)
+                log(Level::Debug, format!("Proxy write failed {} <= {}: {:?}", tunnel_client.addr.to_string(), proxy_client.external_client_addr.to_string(), error).as_str(), "core::tunnel::proxy::tunnel_client_proxy").await;
                 break;
               }
             }
           }
           Err(error) => {
-            //  TODO log closed (debug)
+            log(Level::Debug, format!("Proxy read failed {} <= {}: {:?}", tunnel_client.addr.to_string(), proxy_client.external_client_addr.to_string(), error).as_str(), "core::tunnel::proxy::tunnel_client_proxy").await;
             break;
           }
         }
@@ -164,6 +167,6 @@ pub async fn tunnel_client_proxy(flags: Flags, tunnel_client: Arc<TunnelClient>,
 
   flags.local_cancellation_token.cancel();
   let _shutdown_status = proxy_client.external_client_stream.shutdown().await;
-  //  TODO log proxy ended
+  log(Level::Debug, format!("TCP proxying ended {} <=> {}", tunnel_client.addr.to_string(), proxy_client.external_client_addr.to_string()).as_str(), "core::tunnel::proxy::tunnel_client_proxy").await;
   Ok(())
 }
