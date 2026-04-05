@@ -194,6 +194,7 @@ pub async fn tunnel_client_proxy(
             tunnel_client_read = tunnel_client_stream_rx.read(&mut tunnel_buffer) => {
                 //  client (service) -> external_client
                 match tunnel_client_read {
+                    Ok(0) => { break; }
                     Ok(bytes_read) => {
                         let write_result = proxy_client.external_client_stream_tx.write_all(&tunnel_buffer[..bytes_read]).await;
                         match write_result {
@@ -237,6 +238,7 @@ pub async fn tunnel_client_proxy(
             external_client_read = proxy_client.external_client_stream_rx.read(&mut external_buffer) => {
                 //  external_client -> client (service)
                 match external_client_read {
+                    Ok(0) => { break; }
                     Ok(bytes_read) => {
                         let write_result = tunnel_client_stream_tx.write_all(&external_buffer[..bytes_read]).await;
                         match write_result {

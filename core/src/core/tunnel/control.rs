@@ -49,6 +49,14 @@ pub async fn tunnel_client_control(
         };
 
         select! {
+            biased;
+            _global_cancalled = flags.global_cancellation_token.cancelled() => {
+                flags.local_cancellation_token.cancel();
+                break;
+            },
+            _client_cancealled = flags.local_cancellation_token.cancelled() => {
+                break;
+            },
             result = read_future => {
                 let Ok(message) = result else {
                     handle_bad_request(flags.clone(), tunnel_client.clone()).await;
@@ -157,13 +165,6 @@ pub async fn tunnel_client_control(
                     }
                 }
             },
-            _global_cancalled = flags.global_cancellation_token.cancelled() => {
-                flags.local_cancellation_token.cancel();
-                break;
-            },
-            _client_cancealled = flags.local_cancellation_token.cancelled() => {
-                break;
-            },
         }
     }
 
@@ -198,6 +199,9 @@ pub async fn tunnel_client_heartbeat(
     loop {
         //  wait for heartbeat
         let value = select! {
+            biased;
+            _global_cancalled = flags.global_cancellation_token.cancelled() => None,
+            _client_cancealled = flags.local_cancellation_token.cancelled() => None,
             heartbeat_changed = heartbeat_rx.changed() => {
                 if heartbeat_changed.is_ok() {
                     Some(*heartbeat_rx.borrow())
@@ -206,8 +210,6 @@ pub async fn tunnel_client_heartbeat(
                     None
                 }
             },
-            _global_cancalled = flags.global_cancellation_token.cancelled() => None,
-            _client_cancealled = flags.local_cancellation_token.cancelled() => None,
             _sleep = tokio::time::sleep(TUNNEL_CLIENT_HEARTBEAT_TIMEOUT) => None
         };
 
@@ -215,6 +217,7 @@ pub async fn tunnel_client_heartbeat(
         match value {
             Some(value) if value => {
                 select! {
+                    biased;
                     _global_cancalled = flags.global_cancellation_token.cancelled() => { break; },
                     _client_cancealled = flags.local_cancellation_token.cancelled() => { break; },
                     _sleep = tokio::time::sleep(TUNNEL_CLIENT_HEARTBEAT_TIMEOUT) => {},
@@ -234,6 +237,9 @@ pub async fn tunnel_client_heartbeat(
         };
 
         select! {
+            biased;
+            _global_cancalled = flags.global_cancellation_token.cancelled() => { break; },
+            _client_cancealled = flags.local_cancellation_token.cancelled() => { break; },
             write_result = write_future => {
                 if let Err(error) = write_result {
                     log(Level::Debug, format!("Unable to send heartbeat to {}: {:?}", tunnel_client.addr.to_string(), error).as_str(), "core::tunnel::control::tunnel_client_heartbeat").await;
@@ -241,8 +247,6 @@ pub async fn tunnel_client_heartbeat(
                     break;
                 }
             },
-            _global_cancalled = flags.global_cancellation_token.cancelled() => { break; },
-            _client_cancealled = flags.local_cancellation_token.cancelled() => { break; },
         }
     }
 }
