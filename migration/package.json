@@ -10,7 +10,7 @@
     "type": "git",
     "url": "git+https://github.com/jheanlee/aqueduct-rs.git"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "Jhe-An Lee",
   "type": "module",
   "main": "src/server.ts",
