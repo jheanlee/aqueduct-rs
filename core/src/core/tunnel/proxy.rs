@@ -179,7 +179,6 @@ pub async fn tunnel_client_proxy(
                 //  client (service) -> external_client
                 match tunnel_client_read {
                     Ok(bytes_read) => {
-                        println!("{}",String::from_utf8_lossy(&tunnel_buffer));
                         let write_result = proxy_client.external_client_stream_tx.write_all(&tunnel_buffer[..bytes_read]).await;
                         match write_result {
                             Ok(_) => {
