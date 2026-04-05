@@ -40,6 +40,7 @@ pub async fn tunnel_client_control(
                 };
                 match message.message_type {
                     MessageType::Heartbeat => {
+                        log(Level::Debug, "Heartbeat", "tunnel_client_control").await;
                         heartbeat_tx.send_replace(true);
                     },
                     MessageType::Service => {
@@ -134,6 +135,7 @@ pub async fn tunnel_client_control(
                         break;
                     }
                     MessageType::Error => {
+                        log(Level::Info, format!("Connection with client {} closed with an error: {}", tunnel_client.addr.to_string() ,message.message_string).as_str(), "tunnel::control::tunnel_client_control").await;
                         flags.local_cancellation_token.cancel();
                         break;
                     }

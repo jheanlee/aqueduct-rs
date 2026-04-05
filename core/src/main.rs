@@ -35,6 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     let _ = dotenv::dotenv();
     let config = read_config().map_err(|error| error.to_string())?;
 
+    //  log
     {
         let mut log_config = LOG_CONFIG.lock().await;
         *log_config.deref_mut() = config.log_config;

@@ -172,7 +172,14 @@ pub async fn log(level: Level, message: &str, category: &str) {
 
         let color_reset = color_code::RESET.to_owned();
 
-        let console_message = format!("({timestamp}) {level_code}{color_reset} {message}");
+        let console_message = format!(
+            "({timestamp}) {level_code}{color_reset} {message} {}",
+            if log_config.stdout_filter < Level::Info.as_u8() {
+                format!("{}({category}){color_reset}", color_code::FAINT_GRAY)
+            } else {
+                String::new()
+            }
+        );
         println!("{console_message}");
     }
 
