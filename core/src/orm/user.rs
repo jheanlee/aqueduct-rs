@@ -1,0 +1,44 @@
+/*
+ * Copyright 2026 Jhe-An Lee
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+use crate::orm::error::DbError;
+use entity::entities::user::{Column, Entity};
+use openssl::base64;
+use openssl::sha::Sha256;
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+
+fn password_handler(encoded_salt: String, password: &str) -> String {
+    let salt = base64::decode_block(encoded_salt.as_str()).unwrap_or_default();
+    let mut hasher = Sha256::new();
+    hasher.update(salt.as_slice());
+    hasher.update(password.as_bytes());
+    let hash = hasher.finish();
+    base64::encode_block(&hash)
+}
+
+pub async fn authenticate_user(
+    db_connection: &DatabaseConnection,
+    username: &str,
+    password: &str,
+) -> Result<bool, DbError> {
+    let user = Entity::find()
+        .filter(Column::Username.eq(username))
+        .one(db_connection)
+        .await?
+        .ok_or(DbError::NotFound)?;
+
+    Ok(password_handler(user.salt, password) == user.hashed_password)
+}

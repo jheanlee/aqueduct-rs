@@ -1,0 +1,38 @@
+{
+  "name": "aqueduct-rs-migration",
+  "version": "0.1.0",
+  "description": "",
+  "homepage": "https://github.com/jheanlee/aqueduct-rs#readme",
+  "bugs": {
+    "url": "https://github.com/jheanlee/aqueduct-rs/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jheanlee/aqueduct-rs.git"
+  },
+  "license": "Apache-2.0",
+  "author": "Jhe-An Lee",
+  "type": "module",
+  "main": "src/server.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node --no-warnings=ExperimentalWarning --loader ts-node/esm src/server.ts",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@mikro-orm/core": "^6.6.0",
+    "@mikro-orm/migrations": "^6.6.0",
+    "@mikro-orm/postgresql": "^6.6.0",
+    "@mikro-orm/reflection": "^6.6.0",
+    "@mikro-orm/seeder": "^6.6.0",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "@mikro-orm/cli": "^6.6.0",
+    "@types/node": "^24.10.1",
+    "prettier": "^3.8.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.13"
+  }
+}
