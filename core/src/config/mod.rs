@@ -1,4 +1,4 @@
-pub mod tunnel;
+mod args;
 pub mod config_handler;
 mod error;
-mod args;
+pub mod tunnel;

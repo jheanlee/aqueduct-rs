@@ -1,1 +1,2 @@
-pub static TUNNEL_CLIENT_HEARTBEAT_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(30000);
+pub static TUNNEL_CLIENT_HEARTBEAT_TIMEOUT: std::time::Duration =
+    std::time::Duration::from_millis(30000);

@@ -30,6 +30,7 @@
   "devDependencies": {
     "@mikro-orm/cli": "^6.6.0",
     "@types/node": "^24.10.1",
+    "prettier": "^3.8.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "vitest": "^4.0.13"
