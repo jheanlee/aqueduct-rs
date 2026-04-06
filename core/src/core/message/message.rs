@@ -28,7 +28,6 @@ pub enum MessageType {
     Proxy,   //  proxy connection
     // Authentication,
     Port,
-
     Close,
     Empty, //  placeholder
     Error,
@@ -55,6 +54,7 @@ impl MessageType {
             // 0x13 => Ok(Self::Authentication),
             0x20 => Ok(Self::Port),
             0xf0 => Ok(Self::Close),
+            0xfe => Ok(Self::Empty),
             0xff => Ok(Self::Error),
             _ => Err(InvalidType),
         }

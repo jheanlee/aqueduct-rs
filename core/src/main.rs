@@ -37,8 +37,8 @@ mod config;
 mod core;
 mod orm;
 
-static LOG_CONFIG: LazyLock<Mutex<LogConfig>> = LazyLock::new(|| {
-    Mutex::new(LogConfig {
+static LOG_CONFIG: LazyLock<RwLock<LogConfig>> = LazyLock::new(|| {
+    RwLock::new(LogConfig {
         stdout_filter: Level::Info.into(),
         system_filter: Level::Notice.into(),
         stdout_enabled: true,
@@ -54,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
     //  log
     {
-        let mut log_config = LOG_CONFIG.lock().await;
+        let mut log_config = LOG_CONFIG.write().await;
         *log_config.deref_mut() = config.log_config;
     }
 
