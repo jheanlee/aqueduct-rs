@@ -158,6 +158,10 @@ pub async fn tunnel_client_proxy_control(
             },
         }
     }
+
+    let mut available_ports = tunnel_status.available_ports.write().await;
+    available_ports.push_back(port);
+
     //  fd closed on drop
     Ok(())
 }
@@ -188,8 +192,6 @@ pub async fn tunnel_client_proxy(
     let mut tunnel_client_stream_tx = tunnel_client.stream_tx.lock().await;
 
     loop {
-        tunnel_buffer.fill(0u8);
-        external_buffer.fill(0u8);
         select! {
             tunnel_client_read = tunnel_client_stream_rx.read(&mut tunnel_buffer) => {
                 //  client (service) -> external_client
