@@ -30,7 +30,7 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio::select;
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 
 pub async fn tunnel_client_control(
     flags: Flags,
@@ -40,8 +40,8 @@ pub async fn tunnel_client_control(
     let mut client_type: Option<ClientType> = None;
     let mut buffer = [0u8; 1024];
     let (heartbeat_tx, heartbeat_rx) = watch::channel(false);
-    let (control_tx, control_rx) =
-        watch::channel::<Message>(Message::new(MessageType::Empty, String::new()));
+    let (control_tx, control_rx) = mpsc::channel::<Message>(1);
+    let mut control_rx = Some(control_rx);
     let control_message_sender_client = ControlMessageSenderClient::new(control_tx);
 
     let mut tunnel_client_heartbeat_thread = None;
@@ -67,7 +67,7 @@ pub async fn tunnel_client_control(
             result = read_future => {
                 let Ok(message) = result else {
                     if tunnel_control_message_sender_thread.is_some() {
-                        handle_bad_request_handler(flags.clone(), tunnel_client.addr, control_message_sender_client).await;
+                        handle_bad_request_handler(flags.clone(), tunnel_client.addr, control_message_sender_client.clone()).await;
                     } else {
                         handle_bad_request_stream(flags.clone(), tunnel_client.clone()).await;
                     }
@@ -79,10 +79,20 @@ pub async fn tunnel_client_control(
                         heartbeat_tx.send_replace(true);
                     },
                     MessageType::Service => {
+                        let Some(control_rx) = control_rx.take() else {
+                            handle_bad_request_stream(flags.clone(), tunnel_client.clone()).await;
+                            break;
+                        };
+
+                        if client_type.is_some() {
+                            handle_bad_request_stream(flags.clone(), tunnel_client.clone()).await;
+                            break;
+                        }
+
                         tunnel_control_message_sender_thread = Some(tokio::spawn(
                             tunnel_control_message_sender(
                                 flags.clone(),
-                                control_rx.clone(),
+                                control_rx,
                                 tunnel_client.clone()
                             )
                         ));
@@ -134,7 +144,7 @@ pub async fn tunnel_client_control(
                             )
                             .await;
 
-                            control_message_sender_client.send_message(MessageType::Error, "access denied".to_string());
+                            let _ = control_message_sender_client.send_message(MessageType::Error, "access denied".to_string()).await;
 
                             flags.local_cancellation_token.cancel();
                             break;
@@ -250,7 +260,14 @@ pub async fn tunnel_client_heartbeat(
         //  send heartbeat
         heartbeat_tx.send_replace(false);
         heartbeat_rx.borrow_and_update();
-        control_message_sender_client.send_message(MessageType::Heartbeat, String::new())
+        if control_message_sender_client
+            .send_message(MessageType::Heartbeat, String::new())
+            .await
+            .is_err()
+        {
+            flags.local_cancellation_token.cancel();
+            break;
+        }
     }
 }
 
@@ -266,7 +283,9 @@ async fn handle_bad_request_handler(
     )
     .await;
 
-    control_message_sender_client.send_message(MessageType::Error, "bad request".to_string());
+    let _ = control_message_sender_client
+        .send_message(MessageType::Error, "bad request".to_string())
+        .await;
 
     flags.local_cancellation_token.cancel();
 }

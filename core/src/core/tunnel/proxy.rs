@@ -55,15 +55,22 @@ pub async fn tunnel_client_proxy_control(
             "core::tunnel::proxy::tunnel_client_proxy_control",
         )
         .await;
-        control_message_sender_client
-            .send_message(MessageType::Error, "no ports available".to_string());
+        let _ = control_message_sender_client
+            .send_message(MessageType::Error, "no ports available".to_string())
+            .await;
         flags.local_cancellation_token.cancel();
         Err(NoPortsAvailable)?
     };
 
     //  send port number to client
     let port = tcp_listener.local_addr()?.port();
-    control_message_sender_client.send_message(MessageType::Port, format!("{port}"));
+    if control_message_sender_client
+        .send_message(MessageType::Port, format!("{port}"))
+        .await
+        .is_err()
+    {
+        flags.local_cancellation_token.cancel();
+    }
 
     log(
         Level::Info,
@@ -105,7 +112,10 @@ pub async fn tunnel_client_proxy_control(
                         }
 
                         //  notify client of the new user
-                        control_message_sender_client.send_message(MessageType::Proxy, id.clone());
+                        if control_message_sender_client.send_message(MessageType::Proxy, id.clone()).await.is_err() {
+                            flags.local_cancellation_token.cancel();
+                            break;
+                        }
                     }
                     Err(error) => {
                         log(Level::Warning, format!("Unable to accept external connection for client {}: {:?}", tunnel_client.addr.to_string(), error).as_str(), "core::tunnel::proxy::tunnel_client_proxy_control").await;

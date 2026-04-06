@@ -16,33 +16,40 @@
 use crate::common::log::{Level, log};
 use crate::core::message::message::{Message, MessageType};
 use crate::core::socket::io::send_message;
+use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::model::{Flags, TunnelClient};
 use std::ops::DerefMut;
 use std::sync::Arc;
 use tokio::select;
-use tokio::sync::watch;
+use tokio::sync::mpsc;
 
 #[derive(Clone)]
 pub struct ControlMessageSenderClient {
-    control_message_handler_tx: watch::Sender<Message>,
+    control_message_handler_tx: mpsc::Sender<Message>,
 }
 
 impl ControlMessageSenderClient {
-    pub fn new(tx: watch::Sender<Message>) -> Self {
+    pub fn new(tx: mpsc::Sender<Message>) -> Self {
         ControlMessageSenderClient {
             control_message_handler_tx: tx,
         }
     }
 
-    pub fn send_message(&self, message_type: MessageType, message_string: String) {
+    pub async fn send_message(
+        &self,
+        message_type: MessageType,
+        message_string: String,
+    ) -> Result<(), TunnelError> {
         self.control_message_handler_tx
-            .send_replace(Message::new(message_type, message_string));
+            .send(Message::new(message_type, message_string))
+            .await?;
+        Ok(())
     }
 }
 
 pub async fn tunnel_control_message_sender(
     flags: Flags,
-    mut control_rx: watch::Receiver<Message>,
+    mut control_rx: mpsc::Receiver<Message>,
     tunnel_client: Arc<TunnelClient>,
 ) {
     let mut stream_tx = tunnel_client.stream_tx.lock().await;
@@ -51,8 +58,11 @@ pub async fn tunnel_control_message_sender(
             biased;
             _global_cancalled = flags.global_cancellation_token.cancelled() => { break; },
             _client_cancealled = flags.local_cancellation_token.cancelled() => { break; },
-            received_request = control_rx.changed() => {
-                let message = control_rx.borrow_and_update().clone();
+            received_request = control_rx.recv() => {
+                let Some(message) = received_request else {
+                    flags.local_cancellation_token.cancel();
+                    break;
+                };
 
                 select! {
                     biased;
