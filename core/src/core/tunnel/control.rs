@@ -85,7 +85,7 @@ pub async fn tunnel_client_control(
                         };
 
                         if client_type.is_some() {
-                            handle_bad_request_stream(flags.clone(), tunnel_client.clone()).await;
+                            handle_bad_request_handler(flags.clone(), tunnel_client.addr, control_message_sender_client.clone()).await;
                             break;
                         }
 
@@ -151,6 +151,11 @@ pub async fn tunnel_client_control(
                         }
                     }
                     MessageType::Proxy => {
+                        if client_type.is_some() {
+                            handle_bad_request_stream(flags.clone(), tunnel_client.clone()).await;
+                            break;
+                        }
+
                         let Ok(client_info) = serde_json::from_str::<ProxyMessage>(message.message_string.as_str()) else {
                             handle_bad_request_stream(flags.clone(), tunnel_client.clone()).await;
                             break;
