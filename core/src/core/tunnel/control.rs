@@ -13,16 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 use crate::common::log::{Level, log};
 use crate::config::tunnel::TUNNEL_CLIENT_HEARTBEAT_TIMEOUT;
 use crate::core::message::message::{
     Message, MessageType, ProxyMessage, ServiceAuth, ServiceMessage,
 };
 use crate::core::socket::io::{read_message, send_message};
+use crate::core::tunnel::message_handler::{
+    ControlMessageSenderClient, tunnel_control_message_sender,
+};
 use crate::core::tunnel::model::{ClientType, Flags, TunnelClient, TunnelStatus};
 use crate::core::tunnel::proxy::{tunnel_client_proxy, tunnel_client_proxy_control};
 use crate::orm::user::authenticate_user;
+use std::net::SocketAddr;
 use std::ops::DerefMut;
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
@@ -37,10 +40,14 @@ pub async fn tunnel_client_control(
     let mut client_type: Option<ClientType> = None;
     let mut buffer = [0u8; 1024];
     let (heartbeat_tx, heartbeat_rx) = watch::channel(false);
+    let (control_tx, control_rx) =
+        watch::channel::<Message>(Message::new(MessageType::Empty, String::new()));
+    let control_message_sender_client = ControlMessageSenderClient::new(control_tx);
 
     let mut tunnel_client_heartbeat_thread = None;
     let mut tunnel_client_proxy_control_thread = None;
     let mut tunnel_client_proxy_thread = None;
+    let mut tunnel_control_message_sender_thread = None;
 
     loop {
         let read_future = async {
@@ -59,7 +66,11 @@ pub async fn tunnel_client_control(
             },
             result = read_future => {
                 let Ok(message) = result else {
-                    handle_bad_request(flags.clone(), tunnel_client.clone()).await;
+                    if tunnel_control_message_sender_thread.is_some() {
+                        handle_bad_request_handler(flags.clone(), tunnel_client.addr, control_message_sender_client).await;
+                    } else {
+                        handle_bad_request_stream(flags.clone(), tunnel_client.clone()).await;
+                    }
                     break;
                 };
                 match message.message_type {
@@ -68,8 +79,16 @@ pub async fn tunnel_client_control(
                         heartbeat_tx.send_replace(true);
                     },
                     MessageType::Service => {
+                        tunnel_control_message_sender_thread = Some(tokio::spawn(
+                            tunnel_control_message_sender(
+                                flags.clone(),
+                                control_rx.clone(),
+                                tunnel_client.clone()
+                            )
+                        ));
+
                         let Ok(service_message) = serde_json::from_str::<ServiceMessage>(message.message_string.as_str()) else {
-                            handle_bad_request(flags.clone(), tunnel_client.clone()).await;
+                            handle_bad_request_handler(flags.clone(), tunnel_client.addr, control_message_sender_client).await;
                             break;
                         };
 
@@ -95,7 +114,7 @@ pub async fn tunnel_client_control(
                             tunnel_client_heartbeat_thread = Some(
                                 tokio::spawn(tunnel_client_heartbeat(
                                     flags.clone(),
-                                    tunnel_client.clone(),
+                                    control_message_sender_client.clone(),
                                     (heartbeat_tx.clone(), heartbeat_rx.clone())
                                 ))
                             );
@@ -103,7 +122,8 @@ pub async fn tunnel_client_control(
                                 tokio::spawn(tunnel_client_proxy_control(
                                     flags.clone(),
                                     tunnel_client.clone(),
-                                    tunnel_status.clone()
+                                    tunnel_status.clone(),
+                                    control_message_sender_client.clone()
                                 ))
                             );
                         } else {
@@ -114,16 +134,7 @@ pub async fn tunnel_client_control(
                             )
                             .await;
 
-                            let message = Message::new(
-                                MessageType::Error,
-                                "access denied".to_string()
-                            );
-
-                            let _res = send_message(
-                                tunnel_client.stream_tx.lock().await.deref_mut(),
-                                &message
-                            )
-                            .await;
+                            control_message_sender_client.send_message(MessageType::Error, "access denied".to_string());
 
                             flags.local_cancellation_token.cancel();
                             break;
@@ -131,11 +142,11 @@ pub async fn tunnel_client_control(
                     }
                     MessageType::Proxy => {
                         let Ok(client_info) = serde_json::from_str::<ProxyMessage>(message.message_string.as_str()) else {
-                            handle_bad_request(flags.clone(), tunnel_client.clone()).await;
+                            handle_bad_request_stream(flags.clone(), tunnel_client.clone()).await;
                             break;
                         };
                         let Some(proxy_client) = tunnel_status.proxy_queue.write().await.remove(&client_info.proxy_id) else {
-                            handle_bad_request(flags.clone(), tunnel_client.clone()).await;
+                            handle_bad_request_stream(flags.clone(), tunnel_client.clone()).await;
                             break;
                         };
                         client_type = Some(ClientType::Proxy);
@@ -157,6 +168,9 @@ pub async fn tunnel_client_control(
                     MessageType::Close => {
                         flags.local_cancellation_token.cancel();
                         break;
+                    }
+                    MessageType::Empty => {
+                        //  placeholder message type
                     }
                     MessageType::Error => {
                         log(Level::Info, format!("Connection with client {} closed with an error: {}", tunnel_client.addr.to_string() ,message.message_string).as_str(), "tunnel::control::tunnel_client_control").await;
@@ -180,7 +194,12 @@ pub async fn tunnel_client_control(
         let _ = thread.await;
     }
 
+    if let Some(thread) = tunnel_control_message_sender_thread {
+        let _ = thread.await;
+    }
+
     let _shutdown_status = tunnel_client.stream_tx.lock().await.shutdown().await;
+
     log(
         Level::Info,
         format!("Connection with {} closed", tunnel_client.addr.to_string()).as_str(),
@@ -191,7 +210,7 @@ pub async fn tunnel_client_control(
 
 pub async fn tunnel_client_heartbeat(
     flags: Flags,
-    tunnel_client: Arc<TunnelClient>,
+    control_message_sender_client: ControlMessageSenderClient,
     (heartbeat_tx, mut heartbeat_rx): (watch::Sender<bool>, watch::Receiver<bool>),
 ) {
     let message = Message::new(MessageType::Heartbeat, String::new());
@@ -229,29 +248,30 @@ pub async fn tunnel_client_heartbeat(
         }
 
         //  send heartbeat
-        let write_future = async {
-            let mut guard = tunnel_client.stream_tx.lock().await;
-            heartbeat_tx.send_replace(false);
-            heartbeat_rx.borrow_and_update();
-            send_message(guard.deref_mut(), &message).await
-        };
-
-        select! {
-            biased;
-            _global_cancalled = flags.global_cancellation_token.cancelled() => { break; },
-            _client_cancealled = flags.local_cancellation_token.cancelled() => { break; },
-            write_result = write_future => {
-                if let Err(error) = write_result {
-                    log(Level::Debug, format!("Unable to send heartbeat to {}: {:?}", tunnel_client.addr.to_string(), error).as_str(), "core::tunnel::control::tunnel_client_heartbeat").await;
-                    flags.local_cancellation_token.cancel();
-                    break;
-                }
-            },
-        }
+        heartbeat_tx.send_replace(false);
+        heartbeat_rx.borrow_and_update();
+        control_message_sender_client.send_message(MessageType::Heartbeat, String::new())
     }
 }
 
-async fn handle_bad_request(flags: Flags, tunnel_client: Arc<TunnelClient>) {
+async fn handle_bad_request_handler(
+    flags: Flags,
+    tunnel_client_addr: SocketAddr,
+    control_message_sender_client: ControlMessageSenderClient,
+) {
+    log(
+        Level::Debug,
+        format!("Bad request from {}", tunnel_client_addr.to_string()).as_str(),
+        "core::tunnel::control::tunnel_client_control",
+    )
+    .await;
+
+    control_message_sender_client.send_message(MessageType::Error, "bad request".to_string());
+
+    flags.local_cancellation_token.cancel();
+}
+
+async fn handle_bad_request_stream(flags: Flags, tunnel_client: Arc<TunnelClient>) {
     log(
         Level::Debug,
         format!("Bad request from {}", tunnel_client.addr.to_string()).as_str(),

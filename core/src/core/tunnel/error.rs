@@ -13,11 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 use crate::core::message::error::MessageError;
+use crate::core::message::message::Message;
+use tokio::sync::mpsc;
 
 #[derive(Debug)]
 pub enum TunnelError {
+    MpscMessageSendError(mpsc::error::SendError<Message>),
     MessageError(MessageError),
     IoError(std::io::Error),
     NoPortsAvailable,
@@ -29,6 +31,7 @@ impl std::fmt::Display for TunnelError {
             Self::MessageError(e) => write!(f, "MessageError: {e}"),
             Self::IoError(e) => write!(f, "IoError: {e}"),
             Self::NoPortsAvailable => write!(f, "no ports available"),
+            Self::MpscMessageSendError(e) => write!(f, "MpscSendError: {e}"),
         }
     }
 }
@@ -53,5 +56,11 @@ impl From<crate::core::socket::io::Error> for TunnelError {
             crate::core::socket::io::Error::MessageError(error) => Self::MessageError(error),
             crate::core::socket::io::Error::IoError(error) => Self::IoError(error),
         }
+    }
+}
+
+impl From<mpsc::error::SendError<Message>> for TunnelError {
+    fn from(error: mpsc::error::SendError<Message>) -> Self {
+        Self::MpscMessageSendError(error)
     }
 }

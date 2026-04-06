@@ -15,14 +15,13 @@
  */
 
 use crate::common::log::{Level, log};
-use crate::core::message::message::{Message, MessageType};
-use crate::core::socket::io::send_message;
+use crate::core::message::message::MessageType;
 use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::error::TunnelError::NoPortsAvailable;
+use crate::core::tunnel::message_handler::ControlMessageSenderClient;
 use crate::core::tunnel::model::{Flags, ProxyClient, TunnelClient, TunnelStatus};
 use nanoid::nanoid;
 use std::net::SocketAddr;
-use std::ops::DerefMut;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -32,6 +31,7 @@ pub async fn tunnel_client_proxy_control(
     flags: Flags,
     tunnel_client: Arc<TunnelClient>,
     tunnel_status: Arc<TunnelStatus>,
+    control_message_sender_client: ControlMessageSenderClient,
 ) -> Result<(), TunnelError> {
     //  assign a port
     let mut tcp_listener = None;
@@ -55,35 +55,15 @@ pub async fn tunnel_client_proxy_control(
             "core::tunnel::proxy::tunnel_client_proxy_control",
         )
         .await;
-        let message = Message::new(MessageType::Error, "no ports available".to_string());
-        let mut stream = tunnel_client.stream_tx.lock().await;
-        let _res = send_message(stream.deref_mut(), &message).await;
+        control_message_sender_client
+            .send_message(MessageType::Error, "no ports available".to_string());
         flags.local_cancellation_token.cancel();
         Err(NoPortsAvailable)?
     };
 
     //  send port number to client
     let port = tcp_listener.local_addr()?.port();
-    let message = Message::new(MessageType::Port, format!("{port}"));
-    {
-        let mut stream = tunnel_client.stream_tx.lock().await;
-        let res = send_message(stream.deref_mut(), &message).await;
-        if let Err(error) = res {
-            log(
-                Level::Debug,
-                format!(
-                    "Unable to send assigned port number to {}: {:?}",
-                    tunnel_client.addr.to_string(),
-                    error
-                )
-                .as_str(),
-                "core::tunnel::proxy::tunnel_client_proxy_control",
-            )
-            .await;
-            flags.local_cancellation_token.cancel();
-            Err(error)?;
-        }
-    }
+    control_message_sender_client.send_message(MessageType::Port, format!("{port}"));
 
     log(
         Level::Info,
@@ -105,13 +85,12 @@ pub async fn tunnel_client_proxy_control(
                     Ok((external_client_stream, external_client_addr)) => {
                         //  generate id
                         let id = nanoid!();
-                        let message = Message::new(MessageType::Proxy, id.clone());
                         {
                             //  insert into queue
                             let (external_client_stream_rx, external_client_stream_tx) = external_client_stream.into_split();
                             let mut proxy_queue = tunnel_status.proxy_queue.write().await;
                             proxy_queue.insert(
-                                id,
+                                id.clone(),
                                 ProxyClient {
                                     external_client_stream_rx: external_client_stream_rx,
                                     external_client_stream_tx: external_client_stream_tx,
@@ -124,27 +103,9 @@ pub async fn tunnel_client_proxy_control(
                                 }
                             );
                         }
-                        {
-                            //  notify client of the new user
-                            let mut stream = tunnel_client.stream_tx.lock().await;
-                            let res = send_message(stream.deref_mut(), &message).await;
-                            if let Err(error) = res {
-                                log(
-                                    Level::Warning,
-                                    format!(
-                                        "Unable to send external connection request to client {}: {:?}",
-                                        tunnel_client.addr.to_string(),
-                                        error
-                                    )
-                                    .as_str(),
-                                    "core::tunnel::proxy::tunnel_client_proxy_control"
-                                )
-                                .await;
 
-                                flags.local_cancellation_token.cancel();
-                                break;
-                            }
-                        }
+                        //  notify client of the new user
+                        control_message_sender_client.send_message(MessageType::Proxy, id.clone());
                     }
                     Err(error) => {
                         log(Level::Warning, format!("Unable to accept external connection for client {}: {:?}", tunnel_client.addr.to_string(), error).as_str(), "core::tunnel::proxy::tunnel_client_proxy_control").await;
