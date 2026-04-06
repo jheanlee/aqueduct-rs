@@ -228,8 +228,6 @@ pub async fn tunnel_client_heartbeat(
     control_message_sender_client: ControlMessageSenderClient,
     (heartbeat_tx, mut heartbeat_rx): (watch::Sender<bool>, watch::Receiver<bool>),
 ) {
-    let message = Message::new(MessageType::Heartbeat, String::new());
-
     loop {
         //  wait for heartbeat
         let value = select! {
