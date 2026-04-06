@@ -169,7 +169,7 @@ pub fn init(
 }
 
 pub async fn log(level: Level, message: &str, category: &str) {
-    let log_config = LOG_CONFIG.lock().await;
+    let log_config = LOG_CONFIG.read().await;
 
     //  stdout
     if log_config.stdout_enabled && level.as_u8() >= log_config.stdout_filter {

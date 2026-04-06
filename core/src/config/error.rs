@@ -16,7 +16,7 @@
 
 #[derive(Debug)]
 pub enum ConfigError {
-    AddrParseError(std::net::AddrParseError),
+    AddrParseError,
     ParseIntError(std::num::ParseIntError),
     ParseBoolError(std::str::ParseBoolError),
     LogInitError(crate::common::log::Error),
@@ -26,7 +26,7 @@ pub enum ConfigError {
 impl std::fmt::Display for ConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ConfigError::AddrParseError(_) => write!(f, "invalid address format"),
+            ConfigError::AddrParseError => write!(f, "invalid address format"),
             ConfigError::ParseIntError(error) => write!(f, "{error}"),
             ConfigError::ParseBoolError(error) => write!(f, "{error}"),
             ConfigError::RequiredFieldEmpty((arg_name, env_name)) => write!(
@@ -41,8 +41,8 @@ impl std::fmt::Display for ConfigError {
 impl std::error::Error for ConfigError {}
 
 impl From<std::net::AddrParseError> for ConfigError {
-    fn from(value: std::net::AddrParseError) -> Self {
-        ConfigError::AddrParseError(value)
+    fn from(_value: std::net::AddrParseError) -> Self {
+        ConfigError::AddrParseError
     }
 }
 

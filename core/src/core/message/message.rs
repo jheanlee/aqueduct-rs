@@ -21,14 +21,15 @@ use crate::core::message::error::MessageError::{
 
 static MAX_MESSAGE_LEN: usize = 256;
 
+#[derive(Clone)]
 pub enum MessageType {
     Heartbeat,
     Service, //  service connection
     Proxy,   //  proxy connection
     // Authentication,
     Port,
-
     Close,
+    Empty, //  placeholder
     Error,
 }
 impl MessageType {
@@ -40,6 +41,7 @@ impl MessageType {
             // Self::Authentication => 0x13,
             Self::Port => 0x20,
             Self::Close => 0xf0,
+            Self::Empty => 0xfe,
             Self::Error => 0xff,
         }
     }
@@ -52,12 +54,14 @@ impl MessageType {
             // 0x13 => Ok(Self::Authentication),
             0x20 => Ok(Self::Port),
             0xf0 => Ok(Self::Close),
+            0xfe => Ok(Self::Empty),
             0xff => Ok(Self::Error),
             _ => Err(InvalidType),
         }
     }
 }
 
+#[derive(Clone)]
 pub struct Message {
     pub message_type: MessageType,
     pub message_string: String,
