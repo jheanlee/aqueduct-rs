@@ -37,14 +37,20 @@ pub async fn tunnel_client_proxy_control(
     let mut tcp_listener = None;
     {
         let mut available_ports = tunnel_status.available_ports.write().await;
+        let mut port_count = available_ports.len();
 
-        while let Some(new_port) = available_ports.pop_front() {
-            if let Ok(new_tcp_listener) =
+        while let Some(new_port) = available_ports.pop_front()
+            && port_count > 0
+        {
+            port_count -= 1;
+            let Ok(new_tcp_listener) =
                 TcpListener::bind(format!("{}:{}", tunnel_status.host, new_port)).await
-            {
-                tcp_listener = Some(new_tcp_listener);
-                break;
-            }
+            else {
+                available_ports.push_back(new_port);
+                continue;
+            };
+            tcp_listener = Some(new_tcp_listener);
+            break;
         }
     }
 
