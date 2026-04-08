@@ -24,10 +24,10 @@ use sea_orm::Database;
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::{Arc, LazyLock};
-use tokio::io;
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinSet;
+use tokio::{io, select};
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
 
@@ -85,7 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         db_connection: db_connection,
     });
 
-    let mut threads = JoinSet::new();
+    let mut tunnel_threads = JoinSet::new();
 
     let tls_acceptor = TlsAcceptor::from(server_config);
     let tcp_listener = TcpListener::bind(config.tunnel_host).await?;
@@ -98,38 +98,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     .await;
 
     loop {
-        //  accept connection
-        if let Ok((stream, client_addr)) = tcp_listener.accept().await {
-            //  TODO check whitelist
+        select! {
+            biased;
+            _ = cancellation_token.cancelled() => { break; }
+            _ = tunnel_threads.join_next(), if !tunnel_threads.is_empty() => {}
+            accept_result = tcp_listener.accept() => {
+                //  accept connection
+                if let Ok((stream, client_addr)) = accept_result {
+                    //  TODO check whitelist
 
-            //  tls
-            let tls_acceptor = tls_acceptor.clone();
-            if let Ok(tls_stream) = tls_acceptor.accept(stream).await {
-                log(
-                    Level::Info,
-                    format!("Connection accepted from {}", client_addr.to_string()).as_str(),
-                    "core::main",
-                )
-                .await;
+                    //  tls
+                    let tls_acceptor = tls_acceptor.clone();
+                    if let Ok(tls_stream) = tls_acceptor.accept(stream).await {
+                        log(
+                            Level::Info,
+                            format!("Connection accepted from {}", client_addr.to_string()).as_str(),
+                            "core::main",
+                        )
+                        .await;
 
-                let (stream_rx, stream_tx) = io::split(tls_stream);
+                        let (stream_rx, stream_tx) = io::split(tls_stream);
 
-                threads.spawn(tunnel_client_control(
-                    Flags {
-                        global_cancellation_token: cancellation_token.clone(),
-                        local_cancellation_token: CancellationToken::new(),
-                    },
-                    Arc::new(TunnelClient {
-                        stream_tx: Mutex::new(stream_tx),
-                        stream_rx: Mutex::new(stream_rx),
-                        addr: client_addr,
-                    }),
-                    tunnel_status.clone(),
-                ));
+                        tunnel_threads.spawn(tunnel_client_control(
+                            Flags {
+                                global_cancellation_token: cancellation_token.clone(),
+                                local_cancellation_token: CancellationToken::new(),
+                            },
+                            Arc::new(TunnelClient {
+                                stream_tx: Mutex::new(stream_tx),
+                                stream_rx: Mutex::new(stream_rx),
+                                addr: client_addr,
+                            }),
+                            tunnel_status.clone(),
+                        ));
+                    }
+                }
             }
         }
     }
 
     cancellation_token.cancel();
-    threads.join_all().await;
+    tunnel_threads.join_all().await;
+    Ok(())
 }
