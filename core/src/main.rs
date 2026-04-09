@@ -21,13 +21,14 @@ use crate::core::tunnel::model::{Flags, TunnelClient, TunnelStatus};
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use sea_orm::Database;
+use socket2::{SockRef, TcpKeepalive};
 use std::collections::HashMap;
-use std::ops::DerefMut;
 use std::sync::{Arc, LazyLock};
-use tokio::io;
+use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinSet;
+use tokio::{io, select};
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
 
@@ -55,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     //  log
     {
         let mut log_config = LOG_CONFIG.write().await;
-        *log_config.deref_mut() = config.log_config;
+        *log_config = config.log_config;
     }
 
     //  database
@@ -85,7 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         db_connection: db_connection,
     });
 
-    let mut threads = JoinSet::new();
+    let mut tunnel_threads = JoinSet::new();
 
     let tls_acceptor = TlsAcceptor::from(server_config);
     let tcp_listener = TcpListener::bind(config.tunnel_host).await?;
@@ -98,38 +99,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     .await;
 
     loop {
-        //  accept connection
-        if let Ok((stream, client_addr)) = tcp_listener.accept().await {
-            //  TODO check whitelist
+        select! {
+            biased;
+            _ = cancellation_token.cancelled() => { break; }
+            _ = tunnel_threads.join_next(), if !tunnel_threads.is_empty() => {}
+            accept_result = tcp_listener.accept() => {
+                //  accept connection
+                if let Ok((stream, client_addr)) = accept_result {
+                    let socket_ref = SockRef::from(&stream);
+                    let socket_keep_alive = TcpKeepalive::new()
+                        .with_time(Duration::from_secs(60))
+                        .with_interval(Duration::from_secs(30))
+                        .with_retries(3);
+                    socket_ref.set_tcp_keepalive(&socket_keep_alive)?;
 
-            //  tls
-            let tls_acceptor = tls_acceptor.clone();
-            if let Ok(tls_stream) = tls_acceptor.accept(stream).await {
-                log(
-                    Level::Info,
-                    format!("Connection accepted from {}", client_addr.to_string()).as_str(),
-                    "core::main",
-                )
-                .await;
+                    //  TODO check whitelist
 
-                let (stream_rx, stream_tx) = io::split(tls_stream);
+                    //  tls
+                    let tls_acceptor = tls_acceptor.clone();
+                    if let Ok(tls_stream) = tls_acceptor.accept(stream).await {
+                        log(
+                            Level::Info,
+                            format!("Connection accepted from {}", client_addr.to_string()).as_str(),
+                            "core::main",
+                        )
+                        .await;
 
-                threads.spawn(tunnel_client_control(
-                    Flags {
-                        global_cancellation_token: cancellation_token.clone(),
-                        local_cancellation_token: CancellationToken::new(),
-                    },
-                    Arc::new(TunnelClient {
-                        stream_tx: Mutex::new(stream_tx),
-                        stream_rx: Mutex::new(stream_rx),
-                        addr: client_addr,
-                    }),
-                    tunnel_status.clone(),
-                ));
+                        let (stream_rx, stream_tx) = io::split(tls_stream);
+
+                        tunnel_threads.spawn(tunnel_client_control(
+                            Flags {
+                                global_cancellation_token: cancellation_token.clone(),
+                                local_cancellation_token: CancellationToken::new(),
+                            },
+                            Arc::new(TunnelClient {
+                                stream_tx: Mutex::new(stream_tx),
+                                stream_rx: Mutex::new(stream_rx),
+                                addr: client_addr,
+                            }),
+                            tunnel_status.clone(),
+                        ));
+                    }
+                }
             }
         }
     }
 
     cancellation_token.cancel();
-    threads.join_all().await;
+    tunnel_threads.join_all().await;
+    Ok(())
 }

@@ -26,7 +26,6 @@ use crate::core::tunnel::model::{ClientType, Flags, TunnelClient, TunnelStatus};
 use crate::core::tunnel::proxy::{tunnel_client_proxy, tunnel_client_proxy_control};
 use crate::orm::user::authenticate_user;
 use std::net::SocketAddr;
-use std::ops::DerefMut;
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio::select;
@@ -38,7 +37,7 @@ pub async fn tunnel_client_control(
     tunnel_status: Arc<TunnelStatus>,
 ) {
     let mut client_type: Option<ClientType> = None;
-    let mut buffer = [0u8; 1024];
+    let mut buffer = vec![0u8; 1024];
     let (heartbeat_tx, heartbeat_rx) = watch::channel(false);
     let (control_tx, control_rx) = mpsc::channel::<Message>(1);
     let mut control_rx = Some(control_rx);
@@ -52,7 +51,7 @@ pub async fn tunnel_client_control(
     loop {
         let read_future = async {
             let mut guard = tunnel_client.stream_rx.lock().await;
-            read_message(guard.deref_mut(), buffer.as_mut()).await
+            read_message(&mut guard, &mut buffer).await
         };
 
         select! {
@@ -303,7 +302,7 @@ async fn handle_bad_request_stream(flags: Flags, tunnel_client: Arc<TunnelClient
 
     let message = Message::new(MessageType::Error, "bad request".to_string());
 
-    let _res = send_message(tunnel_client.stream_tx.lock().await.deref_mut(), &message).await;
+    let _res = send_message(&mut *tunnel_client.stream_tx.lock().await, &message).await;
 
     flags.local_cancellation_token.cancel();
 }

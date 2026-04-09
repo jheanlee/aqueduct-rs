@@ -30,9 +30,7 @@ pub async fn read_message(
     stream: &mut ReadHalf<TlsStream<TcpStream>>,
     buffer: &mut [u8],
 ) -> Result<Message, Error> {
-    buffer.fill(0);
-
-    let read_result = stream.read(buffer.as_mut()).await;
+    let read_result = stream.read(buffer).await;
 
     match read_result {
         Ok(bytes_read) => {

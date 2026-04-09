@@ -18,7 +18,6 @@ use crate::core::message::message::{Message, MessageType};
 use crate::core::socket::io::send_message;
 use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::model::{Flags, TunnelClient};
-use std::ops::DerefMut;
 use std::sync::Arc;
 use tokio::select;
 use tokio::sync::mpsc;
@@ -68,7 +67,7 @@ pub async fn tunnel_control_message_sender(
                     biased;
                     _global_cancalled = flags.global_cancellation_token.cancelled() => { break; },
                     _client_cancealled = flags.local_cancellation_token.cancelled() => { break; },
-                    write_result = send_message(stream_tx.deref_mut(), &message) => {
+                    write_result = send_message(&mut stream_tx, &message) => {
                         if let Err(error) = write_result {
                             log(
                                 Level::Warning,

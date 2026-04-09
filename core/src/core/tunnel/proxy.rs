@@ -21,8 +21,10 @@ use crate::core::tunnel::error::TunnelError::NoPortsAvailable;
 use crate::core::tunnel::message_handler::ControlMessageSenderClient;
 use crate::core::tunnel::model::{Flags, ProxyClient, TunnelClient, TunnelStatus};
 use nanoid::nanoid;
+use socket2::{SockRef, TcpKeepalive};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::select;
@@ -37,14 +39,20 @@ pub async fn tunnel_client_proxy_control(
     let mut tcp_listener = None;
     {
         let mut available_ports = tunnel_status.available_ports.write().await;
+        let mut port_count = available_ports.len();
 
-        while let Some(new_port) = available_ports.pop_front() {
-            if let Ok(new_tcp_listener) =
+        while let Some(new_port) = available_ports.pop_front()
+            && port_count > 0
+        {
+            port_count -= 1;
+            let Ok(new_tcp_listener) =
                 TcpListener::bind(format!("{}:{}", tunnel_status.host, new_port)).await
-            {
-                tcp_listener = Some(new_tcp_listener);
-                break;
-            }
+            else {
+                available_ports.push_back(new_port);
+                continue;
+            };
+            tcp_listener = Some(new_tcp_listener);
+            break;
         }
     }
 
@@ -90,6 +98,13 @@ pub async fn tunnel_client_proxy_control(
             result = tcp_listener.accept() => {
                 match result {
                     Ok((external_client_stream, external_client_addr)) => {
+                        let socket_ref = SockRef::from(&external_client_stream);
+                        let socket_keep_alive = TcpKeepalive::new()
+                            .with_time(Duration::from_secs(60))
+                            .with_interval(Duration::from_secs(30))
+                            .with_retries(3);
+                        socket_ref.set_tcp_keepalive(&socket_keep_alive)?;
+
                         //  generate id
                         let id = nanoid!();
                         {
@@ -155,8 +170,8 @@ pub async fn tunnel_client_proxy(
     )
     .await;
 
-    let mut tunnel_buffer = [0u8; 32768];
-    let mut external_buffer = [0u8; 32768];
+    let mut tunnel_buffer = vec![0u8; 32768];
+    let mut external_buffer = vec![0u8; 32768];
 
     //  only this thread would access this stream
     let mut tunnel_client_stream_rx = tunnel_client.stream_rx.lock().await;
