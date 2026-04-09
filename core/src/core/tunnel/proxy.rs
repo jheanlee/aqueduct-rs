@@ -170,8 +170,8 @@ pub async fn tunnel_client_proxy(
     )
     .await;
 
-    let mut tunnel_buffer = [0u8; 32768];
-    let mut external_buffer = [0u8; 32768];
+    let mut tunnel_buffer = vec![0u8; 32768];
+    let mut external_buffer = vec![0u8; 32768];
 
     //  only this thread would access this stream
     let mut tunnel_client_stream_rx = tunnel_client.stream_rx.lock().await;

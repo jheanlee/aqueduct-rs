@@ -23,7 +23,6 @@ use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use sea_orm::Database;
 use socket2::{SockRef, TcpKeepalive};
 use std::collections::HashMap;
-use std::ops::DerefMut;
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 use tokio::net::TcpListener;
@@ -57,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     //  log
     {
         let mut log_config = LOG_CONFIG.write().await;
-        *log_config.deref_mut() = config.log_config;
+        *log_config = config.log_config;
     }
 
     //  database
