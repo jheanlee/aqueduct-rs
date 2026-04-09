@@ -123,6 +123,7 @@ dependencies = [
  "sea-orm",
  "serde",
  "serde_json",
+ "socket2",
  "syslog",
  "tokio",
  "tokio-rustls",

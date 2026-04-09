@@ -21,8 +21,10 @@ use crate::core::tunnel::error::TunnelError::NoPortsAvailable;
 use crate::core::tunnel::message_handler::ControlMessageSenderClient;
 use crate::core::tunnel::model::{Flags, ProxyClient, TunnelClient, TunnelStatus};
 use nanoid::nanoid;
+use socket2::{SockRef, TcpKeepalive};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::select;
@@ -96,6 +98,13 @@ pub async fn tunnel_client_proxy_control(
             result = tcp_listener.accept() => {
                 match result {
                     Ok((external_client_stream, external_client_addr)) => {
+                        let socket_ref = SockRef::from(&external_client_stream);
+                        let socket_keep_alive = TcpKeepalive::new()
+                            .with_time(Duration::from_secs(60))
+                            .with_interval(Duration::from_secs(30))
+                            .with_retries(3);
+                        socket_ref.set_tcp_keepalive(&socket_keep_alive)?;
+
                         //  generate id
                         let id = nanoid!();
                         {

@@ -21,9 +21,11 @@ use crate::core::tunnel::model::{Flags, TunnelClient, TunnelStatus};
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use sea_orm::Database;
+use socket2::{SockRef, TcpKeepalive};
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::{Arc, LazyLock};
+use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinSet;
@@ -105,6 +107,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
             accept_result = tcp_listener.accept() => {
                 //  accept connection
                 if let Ok((stream, client_addr)) = accept_result {
+                    let socket_ref = SockRef::from(&stream);
+                    let socket_keep_alive = TcpKeepalive::new()
+                        .with_time(Duration::from_secs(60))
+                        .with_interval(Duration::from_secs(30))
+                        .with_retries(3);
+                    socket_ref.set_tcp_keepalive(&socket_keep_alive)?;
+
                     //  TODO check whitelist
 
                     //  tls
