@@ -199,7 +199,7 @@ pub async fn log(level: Level, message: &str, category: &str) {
         println!("{console_message}");
     }
 
-    //  macos os_log (only available if compiled with Apple clang)
+    //  macOS os_log (only available if compiled with Apple clang)
     #[cfg(target_os = "macos")]
     if log_config.oslog_enabled && level.as_u8() != Level::Always.as_u8() {
         let log_level = match level.as_u8() {
