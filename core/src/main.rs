@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+use crate::common::auth_manager::AuthManager;
 use crate::common::log::{Level, LogConfig, log};
+use crate::common::model::Shared;
 use crate::config::config_handler::read_config;
 use crate::core::tunnel::control::tunnel_client_control;
 use crate::core::tunnel::model::{Flags, TunnelClient, TunnelStatus};
@@ -77,14 +79,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
             .expect("TLS config error"),
     );
 
-    //  shared
+    //  auth
+    let auth_manager = Arc::new(AuthManager::new());
+
+    //  tunnel shared
     let cancellation_token = CancellationToken::new();
     let tunnel_status = Arc::new(TunnelStatus {
         host: config.tunnel_host.ip().to_string(),
         available_ports: RwLock::new(config.tunnel_allowed_ports),
         proxy_queue: RwLock::new(HashMap::new()),
-        db_connection: db_connection,
     });
+
+    //  shared
+    let shared = Shared {
+        db_connection,
+        auth_manager,
+    };
 
     let mut tunnel_threads = JoinSet::new();
 
@@ -136,6 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                                         global_cancellation_token: cancellation_token.clone(),
                                         local_cancellation_token: CancellationToken::new(),
                                     },
+                                    shared.clone(),
                                     Arc::new(TunnelClient {
                                         stream_tx: Mutex::new(stream_tx),
                                         stream_rx: Mutex::new(stream_rx),

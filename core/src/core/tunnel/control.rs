@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 use crate::common::log::{Level, log};
+use crate::common::model::Shared;
 use crate::config::tunnel::TUNNEL_CLIENT_HEARTBEAT_TIMEOUT;
 use crate::core::message::message::{
     Message, MessageType, ProxyMessage, ServiceAuth, ServiceMessage,
@@ -24,7 +25,7 @@ use crate::core::tunnel::message_handler::{
 };
 use crate::core::tunnel::model::{ClientType, Flags, TunnelClient, TunnelStatus};
 use crate::core::tunnel::proxy::{tunnel_client_proxy, tunnel_client_proxy_control};
-use crate::orm::user::authenticate_user;
+use crate::orm::tunnel_user::authenticate_tunnel_user;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
@@ -33,6 +34,7 @@ use tokio::sync::{mpsc, watch};
 
 pub async fn tunnel_client_control(
     flags: Flags,
+    shared: Shared,
     tunnel_client: Arc<TunnelClient>,
     tunnel_status: Arc<TunnelStatus>,
 ) {
@@ -108,8 +110,8 @@ pub async fn tunnel_client_control(
                             },
 
                             ServiceAuth::Password { username, password } => {
-                                authenticate_user(
-                                    &tunnel_status.db_connection,
+                                authenticate_tunnel_user(
+                                    shared.clone(),
                                     username.as_str(),
                                     password.as_str()
                                 )

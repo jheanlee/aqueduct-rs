@@ -17,7 +17,7 @@
 import { Entity, PrimaryKey, Property, Unique } from "@mikro-orm/core";
 
 @Entity()
-export class User {
+export class WebUsers {
   @PrimaryKey({ length: 21 })
   id!: string;
 
@@ -25,10 +25,14 @@ export class User {
   @Unique()
   username!: string;
 
+  //  hashed with argon2-id
   @Property({ type: "text" })
   hashedPassword!: string;
 
-  //  8 random bytes, base64 encoded
-  @Property({ length: 12 })
+  //  16 random bytes, base64 encoded, padding omitted
+  @Property({ length: 22 })
   salt!: string;
+
+  @Property()
+  administrator!: boolean;
 }

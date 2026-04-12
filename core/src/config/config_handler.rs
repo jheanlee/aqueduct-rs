@@ -26,6 +26,8 @@ pub struct Config {
     pub tunnel_host: SocketAddr,
     pub tunnel_allowed_ports: VecDeque<u16>,
 
+    pub api_host: SocketAddr, //  TODO
+
     pub tls_cert_path: String,
     pub tls_private_key_path: String,
 
@@ -45,6 +47,7 @@ pub fn read_config() -> Result<Config, ConfigError> {
     let mut config = Config {
         tunnel_host: SocketAddr::from_str("0.0.0.0:30330")?,
         tunnel_allowed_ports: (51000..=51999).collect(),
+        api_host: SocketAddr::from_str("0.0.0.0:30331")?,
         tls_cert_path: "".to_string(),
         tls_private_key_path: "".to_string(),
         db_name: "aqueduct-rs".to_string(),

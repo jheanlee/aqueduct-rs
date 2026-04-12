@@ -1,0 +1,84 @@
+/*
+ * Copyright 2026 Jhe-An Lee
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+use crate::common::model::Shared;
+use crate::orm::error::DbError;
+use entity::entities::tunnel_users::{ActiveModel, Column, Entity};
+use nanoid::nanoid;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, Set};
+
+pub async fn authenticate_tunnel_user(
+    shared: Shared,
+    username: &str,
+    password: &str,
+) -> Result<bool, DbError> {
+    let user = Entity::find()
+        .filter(Column::Username.eq(username))
+        .one(&shared.db_connection)
+        .await?
+        .ok_or(DbError::NotFound)?;
+
+    Ok(shared
+        .auth_manager
+        .verify_password(password.to_string(), user.hashed_password)
+        .await?)
+}
+
+pub async fn new_tunnel_user(
+    shared: Shared,
+    username: String,
+    password: String,
+) -> Result<(), DbError> {
+    let (hashed_password, salt) = shared.auth_manager.hash_password(password).await?;
+
+    let user = ActiveModel {
+        id: Set(nanoid!()),
+        username: Set(username),
+        hashed_password: Set(hashed_password),
+        salt: Set(salt),
+    };
+
+    user.insert(&shared.db_connection).await?;
+    Ok(())
+}
+
+pub async fn modify_tunnel_user_password(
+    shared: Shared,
+    id: &str,
+    new_password: String,
+) -> Result<(), DbError> {
+    let mut user = Entity::find_by_id(id)
+        .one(&shared.db_connection)
+        .await?
+        .ok_or(DbError::NotFound)?
+        .into_active_model();
+
+    let (hashed_password, salt) = shared.auth_manager.hash_password(new_password).await?;
+    user.hashed_password = Set(hashed_password);
+    user.salt = Set(salt);
+
+    user.update(&shared.db_connection).await?;
+    Ok(())
+}
+
+pub async fn delete_tunnel_user(shared: Shared, id: &str) -> Result<(), DbError> {
+    let user = Entity::find_by_id(id)
+        .one(&shared.db_connection)
+        .await?
+        .ok_or(DbError::NotFound)?
+        .into_active_model();
+    user.delete(&shared.db_connection).await?;
+    Ok(())
+}

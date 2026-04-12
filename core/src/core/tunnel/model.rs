@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-use sea_orm::DatabaseConnection;
 use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 use tokio::io::{ReadHalf, WriteHalf};
@@ -45,7 +44,6 @@ pub struct TunnelStatus {
     pub host: String,
     pub available_ports: RwLock<VecDeque<u16>>,
     pub proxy_queue: RwLock<HashMap<String, ProxyClient>>,
-    pub db_connection: DatabaseConnection,
 }
 
 pub struct ProxyClient {

@@ -6,8 +6,9 @@ license = "Apache-2.0"
 
 [dependencies]
 aqueduct-rs-entity = { path = "../entity" }
+argon2 = "0.5.3"
+axum = "0.8.8"
 chrono = "0.4.43"
-
 clap = { version = "4.5.61", features = ["derive"] }
 dotenv = "0.15.0"
 log = "0.4.29"
