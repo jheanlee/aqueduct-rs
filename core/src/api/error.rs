@@ -13,22 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use std::fmt::Formatter;
 
 #[derive(Debug)]
 pub enum Error {
-    NotFound,
-    DatabaseError(sea_orm::DbErr),
-    CommonError(crate::common::error::Error),
+    DatabaseError(crate::orm::error::Error),
 }
 
 impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NotFound => write!(f, "Resource not found"),
-            Self::DatabaseError(error) => write!(f, "DbErr: {error}"),
-            Self::CommonError(error) => write!(f, "{error}"),
+            Self::DatabaseError(e) => write!(f, "DatabaseError: {e}"),
         }
     }
 }
@@ -38,21 +34,13 @@ impl std::error::Error for Error {}
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
         match self {
-            Error::NotFound => StatusCode::NOT_FOUND.into_response(),
-            Error::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-            Error::CommonError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            Error::DatabaseError(error) => error.into_response(),
         }
     }
 }
 
-impl From<sea_orm::DbErr> for Error {
-    fn from(error: sea_orm::DbErr) -> Self {
+impl From<crate::orm::error::Error> for Error {
+    fn from(error: crate::orm::error::Error) -> Self {
         Self::DatabaseError(error)
-    }
-}
-
-impl From<crate::common::error::Error> for Error {
-    fn from(error: crate::common::error::Error) -> Self {
-        Self::CommonError(error)
     }
 }

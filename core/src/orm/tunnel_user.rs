@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 use crate::common::model::Shared;
-use crate::orm::error::DbError;
+use crate::orm::error::Error;
 use entity::entities::tunnel_users::{ActiveModel, Column, Entity};
 use nanoid::nanoid;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, Set};
@@ -23,12 +23,12 @@ pub async fn authenticate_tunnel_user(
     shared: Shared,
     username: &str,
     password: &str,
-) -> Result<bool, DbError> {
+) -> Result<bool, Error> {
     let user = Entity::find()
         .filter(Column::Username.eq(username))
         .one(&shared.db_connection)
         .await?
-        .ok_or(DbError::NotFound)?;
+        .ok_or(Error::NotFound)?;
 
     Ok(shared
         .auth_manager
@@ -40,7 +40,7 @@ pub async fn new_tunnel_user(
     shared: Shared,
     username: String,
     password: String,
-) -> Result<(), DbError> {
+) -> Result<(), Error> {
     let (hashed_password, salt) = shared.auth_manager.hash_password(password).await?;
 
     let user = ActiveModel {
@@ -58,11 +58,11 @@ pub async fn modify_tunnel_user_password(
     shared: Shared,
     id: &str,
     new_password: String,
-) -> Result<(), DbError> {
+) -> Result<(), Error> {
     let mut user = Entity::find_by_id(id)
         .one(&shared.db_connection)
         .await?
-        .ok_or(DbError::NotFound)?
+        .ok_or(Error::NotFound)?
         .into_active_model();
 
     let (hashed_password, salt) = shared.auth_manager.hash_password(new_password).await?;
@@ -73,11 +73,11 @@ pub async fn modify_tunnel_user_password(
     Ok(())
 }
 
-pub async fn delete_tunnel_user(shared: Shared, id: &str) -> Result<(), DbError> {
+pub async fn delete_tunnel_user(shared: Shared, id: &str) -> Result<(), Error> {
     let user = Entity::find_by_id(id)
         .one(&shared.db_connection)
         .await?
-        .ok_or(DbError::NotFound)?
+        .ok_or(Error::NotFound)?
         .into_active_model();
     user.delete(&shared.db_connection).await?;
     Ok(())

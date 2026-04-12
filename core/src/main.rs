@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+use crate::api::control::api_control;
 use crate::common::auth_manager::AuthManager;
 use crate::common::log::{Level, LogConfig, log};
 use crate::common::model::Shared;
@@ -54,6 +55,7 @@ static LOG_CONFIG: LazyLock<RwLock<LogConfig>> = LazyLock::new(|| {
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     let _ = dotenv::dotenv();
     let config = read_config().map_err(|error| error.to_string())?;
+    let cancellation_token = CancellationToken::new();
 
     //  log
     {
@@ -83,7 +85,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     let auth_manager = Arc::new(AuthManager::new());
 
     //  tunnel shared
-    let cancellation_token = CancellationToken::new();
     let tunnel_status = Arc::new(TunnelStatus {
         host: config.tunnel_host.ip().to_string(),
         available_ports: RwLock::new(config.tunnel_allowed_ports),
@@ -95,6 +96,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         db_connection,
         auth_manager,
     };
+
+    //  api
+
+    let api_thread = tokio::spawn(api_control(
+        shared.clone(),
+        cancellation_token.clone(),
+        config.api_host,
+    ));
+
+    //  tunnel
 
     let mut tunnel_threads = JoinSet::new();
 
@@ -163,6 +174,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     }
 
     cancellation_token.cancel();
+    let _ = api_thread.await;
     tunnel_threads.join_all().await;
     Ok(())
 }
