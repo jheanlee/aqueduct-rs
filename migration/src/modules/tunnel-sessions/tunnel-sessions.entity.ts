@@ -25,8 +25,11 @@ export class TunnelSessions {
   @ManyToOne(() => TunnelUsers)
   user!: TunnelUsers;
 
-  @Property({ type: "inet" })
-  ipAddr!: string;
+  @Property()
+  tunnelClient!: string;
+
+  @Property()
+  externalClient!: string;
 
   @Property({ type: "bigint" })
   inbound!: string;

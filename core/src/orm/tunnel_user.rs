@@ -23,17 +23,21 @@ pub async fn authenticate_tunnel_user(
     shared: Shared,
     username: &str,
     password: &str,
-) -> Result<bool, Error> {
+) -> Result<Option<String>, Error> {
     let user = Entity::find()
         .filter(Column::Username.eq(username))
         .one(&shared.db_connection)
         .await?
         .ok_or(Error::NotFound)?;
-
-    Ok(shared
+    if shared
         .auth_manager
         .verify_password(password.to_string(), user.hashed_password)
-        .await?)
+        .await?
+    {
+        Ok(Some(user.id))
+    } else {
+        Ok(None)
+    }
 }
 
 pub async fn new_tunnel_user(

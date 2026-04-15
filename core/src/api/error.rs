@@ -13,18 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use std::fmt::Formatter;
 
 #[derive(Debug)]
 pub enum Error {
     DatabaseError(crate::orm::error::Error),
+    JsonError(serde_json::Error),
+    HttpError(axum::http::Error),
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::DatabaseError(e) => write!(f, "DatabaseError: {e}"),
+            Self::JsonError(e) => write!(f, "JsonError: {e}"),
+            Self::HttpError(e) => write!(f, "HttpError: {e}"),
         }
     }
 }
@@ -35,6 +40,8 @@ impl IntoResponse for Error {
     fn into_response(self) -> Response {
         match self {
             Error::DatabaseError(error) => error.into_response(),
+            Error::JsonError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            Error::HttpError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }
 }
@@ -42,5 +49,17 @@ impl IntoResponse for Error {
 impl From<crate::orm::error::Error> for Error {
     fn from(error: crate::orm::error::Error) -> Self {
         Self::DatabaseError(error)
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(error: serde_json::Error) -> Self {
+        Self::JsonError(error)
+    }
+}
+
+impl From<axum::http::Error> for Error {
+    fn from(error: axum::http::Error) -> Self {
+        Self::HttpError(error)
     }
 }

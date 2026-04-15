@@ -23,8 +23,8 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    #[sea_orm(ignore, column_type = "custom(\"inet\")", select_as = "text")]
-    pub subnet: String,
+    #[sea_orm(column_type = "custom(\"inet\")")]
+    pub subnet: IpNetwork,
     #[sea_orm(column_type = "Text")]
     pub comment: String,
 }

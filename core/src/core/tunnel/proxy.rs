@@ -15,6 +15,7 @@
  */
 
 use crate::common::log::{Level, log};
+use crate::common::model::Shared;
 use crate::core::message::message::MessageType;
 use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::error::TunnelError::NoPortsAvailable;
@@ -28,9 +29,11 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::select;
+use tokio::time::{Instant, sleep_until};
 
 pub async fn tunnel_client_proxy_control(
     flags: Flags,
+    tunnel_client_user_id: String,
     tunnel_client: Arc<TunnelClient>,
     tunnel_status: Arc<TunnelStatus>,
     control_message_sender_client: ControlMessageSenderClient,
@@ -114,6 +117,8 @@ pub async fn tunnel_client_proxy_control(
                             proxy_queue.insert(
                                 id.clone(),
                                 ProxyClient {
+                                    proxy_id: id.clone(),
+                                    tunnel_client_user_id: tunnel_client_user_id.clone(),
                                     external_client_stream_rx: external_client_stream_rx,
                                     external_client_stream_tx: external_client_stream_tx,
                                     external_client_addr: external_client_addr,
@@ -154,6 +159,7 @@ pub async fn tunnel_client_proxy_control(
 
 pub async fn tunnel_client_proxy(
     flags: Flags,
+    shared: Shared,
     tunnel_client: Arc<TunnelClient>,
     mut proxy_client: ProxyClient,
     tunnel_status: Arc<TunnelStatus>,
@@ -177,8 +183,25 @@ pub async fn tunnel_client_proxy(
     let mut tunnel_client_stream_rx = tunnel_client.stream_rx.lock().await;
     let mut tunnel_client_stream_tx = tunnel_client.stream_tx.lock().await;
 
+    //  usage counter
+    let mut inbound = 0i64;
+    let mut outbound = 0i64;
+    const COUNTER_UPDATE_INTERVAL: u64 = 300;
+    let mut next_deadline = Instant::now() + Duration::from_secs(COUNTER_UPDATE_INTERVAL);
+
     loop {
         select! {
+            _ = sleep_until(next_deadline) => {
+                if inbound != 0 || outbound != 0 {
+                    let _ = shared
+                        .database_tunnel_session_batch_tx
+                        .send((proxy_client.proxy_id.clone(), inbound, outbound, true))
+                        .await; //  only fails when global cancellation token is set
+                    inbound = 0;
+                    outbound = 0;
+                }
+                next_deadline = Instant::now() + Duration::from_secs(COUNTER_UPDATE_INTERVAL);
+            }
             tunnel_client_read = tunnel_client_stream_rx.read(&mut tunnel_buffer) => {
                 //  client (service) -> external_client
                 match tunnel_client_read {
@@ -187,7 +210,7 @@ pub async fn tunnel_client_proxy(
                         let write_result = proxy_client.external_client_stream_tx.write_all(&tunnel_buffer[..bytes_read]).await;
                         match write_result {
                             Ok(_) => {
-                                //  TODO usage counter
+                                outbound += bytes_read as i64;
                             }
                             Err(error) => {
                                 log(
@@ -231,7 +254,7 @@ pub async fn tunnel_client_proxy(
                         let write_result = tunnel_client_stream_tx.write_all(&external_buffer[..bytes_read]).await;
                         match write_result {
                             Ok(_) => {
-                                //  TODO usage counter
+                                inbound += bytes_read as i64;
                             }
                             Err(error) => {
                                 log(
@@ -286,5 +309,10 @@ pub async fn tunnel_client_proxy(
         "core::tunnel::proxy::tunnel_client_proxy",
     )
     .await;
+
+    let _ = shared
+        .database_tunnel_session_batch_tx
+        .send((proxy_client.proxy_id, inbound, outbound, true))
+        .await; //  only fails when global cancellation token is set
     Ok(())
 }

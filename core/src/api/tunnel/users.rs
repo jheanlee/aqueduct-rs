@@ -16,11 +16,13 @@
 use crate::api::control::ApiState;
 use crate::api::error::Error;
 use crate::orm;
-use axum::Json;
+use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
+use axum::{Json, http};
 use serde::Deserialize;
+use serde_json::to_string;
 
 #[derive(Deserialize)]
 pub struct NewTunnelUserBody {
@@ -67,4 +69,19 @@ pub async fn delete_tunnel_user(
 ) -> Result<impl IntoResponse, Error> {
     orm::tunnel_user::delete_tunnel_user(api_state.shared, path.id.as_str()).await?;
     Ok(StatusCode::OK)
+}
+
+#[derive(Deserialize)]
+pub struct GetTunnelUsageByUserPath {
+    pub id: String,
+}
+pub async fn get_tunnel_usage_by_user(
+    State(api_state): State<ApiState>,
+    Path(path): Path<GetTunnelUsageByUserPath>,
+) -> Result<Response<Body>, Error> {
+    let data = orm::usage_data::get_tunnel_user_data(api_state.shared, path.id.as_str()).await?;
+    let response_builder =
+        Response::builder().header(http::header::CONTENT_TYPE, "application/json");
+    let response_body = Body::from(to_string(&data)?);
+    Ok(response_builder.body(response_body)?)
 }

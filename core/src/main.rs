@@ -21,6 +21,7 @@ use crate::common::model::Shared;
 use crate::config::config_handler::read_config;
 use crate::core::tunnel::control::tunnel_client_control;
 use crate::core::tunnel::model::{Flags, TunnelClient, TunnelStatus};
+use crate::orm::tunnel_session::database_tunnel_session_batch_thread;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use sea_orm::Database;
@@ -29,7 +30,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 use tokio::net::TcpListener;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock, mpsc};
 use tokio::task::JoinSet;
 use tokio::{io, select};
 use tokio_rustls::TlsAcceptor;
@@ -92,13 +93,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     });
 
     //  shared
+    let (database_tunnel_session_batch_tx, database_tunnel_session_batch_rx) = mpsc::channel(256);
     let shared = Shared {
         db_connection,
         auth_manager,
+        database_tunnel_session_batch_tx,
     };
 
     //  api
-
     let api_thread = tokio::spawn(api_control(
         shared.clone(),
         cancellation_token.clone(),
@@ -106,8 +108,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     ));
 
     //  tunnel
-
     let mut tunnel_threads = JoinSet::new();
+    let database_tunnel_sessions_batch_thread = tokio::spawn(database_tunnel_session_batch_thread(
+        shared.clone(),
+        database_tunnel_session_batch_rx,
+        cancellation_token.clone(),
+    ));
 
     let tls_acceptor = TlsAcceptor::from(server_config);
     let tcp_listener = TcpListener::bind(config.tunnel_host).await?;
@@ -175,6 +181,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
     cancellation_token.cancel();
     let _ = api_thread.await;
+    let _ = database_tunnel_sessions_batch_thread.await;
     tunnel_threads.join_all().await;
     Ok(())
 }

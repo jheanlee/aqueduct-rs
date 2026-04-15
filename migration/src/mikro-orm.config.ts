@@ -30,5 +30,6 @@ export default defineConfig({
   entitiesTs: ["src/**/*.entity.ts"],
   metadataProvider: TsMorphMetadataProvider,
   extensions: [SeedManager, Migrator],
+  forceUtcTimezone: true,
   debug: true,
 });

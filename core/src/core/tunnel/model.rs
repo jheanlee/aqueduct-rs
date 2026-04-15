@@ -34,7 +34,6 @@ pub struct Flags {
 }
 
 pub struct TunnelClient {
-    // pub stream: Mutex<TlsStream<TcpStream>>,
     pub stream_tx: Mutex<WriteHalf<TlsStream<TcpStream>>>,
     pub stream_rx: Mutex<ReadHalf<TlsStream<TcpStream>>>,
     pub addr: SocketAddr,
@@ -47,6 +46,8 @@ pub struct TunnelStatus {
 }
 
 pub struct ProxyClient {
+    pub proxy_id: String,
+    pub tunnel_client_user_id: String,
     pub external_client_stream_rx: tcp::OwnedReadHalf,
     pub external_client_stream_tx: tcp::OwnedWriteHalf,
     pub external_client_addr: SocketAddr,

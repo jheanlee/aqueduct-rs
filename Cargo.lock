@@ -137,7 +137,6 @@ name = "aqueduct-rs-entity"
 version = "0.1.0"
 dependencies = [
  "sea-orm",
- "serde",
 ]
 
 [[package]]
@@ -1468,6 +1467,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ipnetwork"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf466541e9d546596ee94f9f69590f89473455f88372423e0008fc1a7daf100e"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "is_terminal_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2400,6 +2408,7 @@ dependencies = [
  "chrono",
  "derive_more",
  "futures-util",
+ "ipnetwork",
  "itertools",
  "log",
  "mac_address",
@@ -2457,6 +2466,7 @@ checksum = "b04cdb0135c16e829504e93fbe7880513578d56f07aaea152283526590111828"
 dependencies = [
  "chrono",
  "inherent",
+ "ipnetwork",
  "ordered-float",
  "rust_decimal",
  "sea-query-derive",
@@ -2730,6 +2740,7 @@ dependencies = [
  "hashbrown 0.15.5",
  "hashlink",
  "indexmap",
+ "ipnetwork",
  "log",
  "memchr",
  "native-tls",
@@ -2854,6 +2865,7 @@ dependencies = [
  "hkdf",
  "hmac",
  "home",
+ "ipnetwork",
  "itoa",
  "log",
  "md-5",

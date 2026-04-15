@@ -24,12 +24,12 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
     pub user_id: String,
-    #[sea_orm(ignore, column_type = "custom(\"inet\")", select_as = "text")]
-    pub ip_addr: String,
+    pub tunnel_client: String,
+    pub external_client: String,
     pub inbound: i64,
     pub outbound: i64,
-    pub start_time: DateTimeWithTimeZone,
-    pub end_time: Option<DateTimeWithTimeZone>,
+    pub start_time: DateTimeUtc,
+    pub end_time: Option<DateTimeUtc>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

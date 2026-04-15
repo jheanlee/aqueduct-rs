@@ -13,11 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use crate::api::tunnel::users::{delete_tunnel_user, modify_tunnel_user_password, new_tunnel_user};
+use crate::api::tunnel::users::{
+    delete_tunnel_user, get_tunnel_usage_by_user, modify_tunnel_user_password, new_tunnel_user,
+};
 use crate::common::log::{Level, log};
 use crate::common::model::Shared;
 use axum::Router;
-use axum::routing::{delete, post, put};
+use axum::routing::{delete, get, post, put};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tokio::select;
@@ -37,6 +39,10 @@ pub async fn api_control(
         .route("/api/tunnel/users", post(new_tunnel_user))
         .route("/api/tunnel/users/{id}", put(modify_tunnel_user_password))
         .route("/api/tunnel/users/{id}", delete(delete_tunnel_user))
+        .route(
+            "/api/tunnel/users/{id}/usage",
+            get(get_tunnel_usage_by_user),
+        )
         .with_state(ApiState { shared });
 
     match TcpListener::bind(api_host).await {

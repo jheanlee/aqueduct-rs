@@ -15,5 +15,6 @@
  */
 
 pub mod error;
+pub mod tunnel_session;
 pub mod tunnel_user;
-mod usage_data;
+pub mod usage_data;

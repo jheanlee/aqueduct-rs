@@ -16,9 +16,11 @@
 use crate::common::auth_manager::AuthManager;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
+use tokio::sync::mpsc;
 
 #[derive(Clone)]
 pub struct Shared {
     pub db_connection: DatabaseConnection,
     pub auth_manager: Arc<AuthManager>,
+    pub database_tunnel_session_batch_tx: mpsc::Sender<(String, i64, i64, bool)>,
 }

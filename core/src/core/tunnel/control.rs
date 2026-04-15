@@ -25,6 +25,7 @@ use crate::core::tunnel::message_handler::{
 };
 use crate::core::tunnel::model::{ClientType, Flags, TunnelClient, TunnelStatus};
 use crate::core::tunnel::proxy::{tunnel_client_proxy, tunnel_client_proxy_control};
+use crate::orm::tunnel_session::new_tunnel_session;
 use crate::orm::tunnel_user::authenticate_tunnel_user;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -103,10 +104,11 @@ pub async fn tunnel_client_control(
                             break;
                         };
 
-                        let authorized = match service_message.auth {
+                        let user_id = match service_message.auth {
                             ServiceAuth::Token { token } => {
-                                // TODO token verification
-                                true
+                                //  TODO token verification
+                                //  TODO return user_id
+                                todo!()
                             },
 
                             ServiceAuth::Password { username, password } => {
@@ -116,28 +118,11 @@ pub async fn tunnel_client_control(
                                     password.as_str()
                                 )
                                 .await
-                                .unwrap_or(false)
+                                .unwrap_or(None)
                             },
                         };
 
-                        if authorized {
-                            client_type = Some(ClientType::Service);
-                            tunnel_client_heartbeat_thread = Some(
-                                tokio::spawn(tunnel_client_heartbeat(
-                                    flags.clone(),
-                                    control_message_sender_client.clone(),
-                                    (heartbeat_tx.clone(), heartbeat_rx.clone())
-                                ))
-                            );
-                            tunnel_client_proxy_control_thread = Some(
-                                tokio::spawn(tunnel_client_proxy_control(
-                                    flags.clone(),
-                                    tunnel_client.clone(),
-                                    tunnel_status.clone(),
-                                    control_message_sender_client.clone()
-                                ))
-                            );
-                        } else {
+                        let Some(user_id) = user_id else {
                             log(
                                 Level::Notice,
                                 format!("Access from {} denied", tunnel_client.addr.to_string()).as_str(),
@@ -149,7 +134,25 @@ pub async fn tunnel_client_control(
 
                             flags.local_cancellation_token.cancel();
                             break;
-                        }
+                        };
+
+                        client_type = Some(ClientType::Service);
+                        tunnel_client_heartbeat_thread = Some(
+                            tokio::spawn(tunnel_client_heartbeat(
+                                flags.clone(),
+                                control_message_sender_client.clone(),
+                                (heartbeat_tx.clone(), heartbeat_rx.clone())
+                            ))
+                        );
+                        tunnel_client_proxy_control_thread = Some(
+                            tokio::spawn(tunnel_client_proxy_control(
+                                flags.clone(),
+                                user_id,
+                                tunnel_client.clone(),
+                                tunnel_status.clone(),
+                                control_message_sender_client.clone()
+                            ))
+                        );
                     }
                     MessageType::Proxy => {
                         if client_type.is_some() {
@@ -166,9 +169,24 @@ pub async fn tunnel_client_control(
                             break;
                         };
                         client_type = Some(ClientType::Proxy);
+                        if let Err(error) = new_tunnel_session(
+                            shared.clone(),
+                            proxy_client.proxy_id.clone(),
+                            proxy_client.tunnel_client_user_id.clone(),
+                            tunnel_client.addr,
+                            proxy_client.external_client_addr
+                        ).await {
+                            log(
+                                Level::Warning,
+                                format!("Unable to update database: {:?}", error).as_str(),
+                                "tunnel::control::tunnel_client_control"
+                            )
+                            .await;
+                        }
                         tunnel_client_proxy_thread = Some(
                             tokio::spawn(tunnel_client_proxy(
                                 flags.clone(),
+                                shared.clone(),
                                 tunnel_client.clone(),
                                 proxy_client,
                                 tunnel_status.clone()
@@ -189,7 +207,17 @@ pub async fn tunnel_client_control(
                         //  placeholder message type
                     }
                     MessageType::Error => {
-                        log(Level::Info, format!("Connection with client {} closed with an error: {}", tunnel_client.addr.to_string() ,message.message_string).as_str(), "tunnel::control::tunnel_client_control").await;
+                        log(
+                            Level::Info,
+                            format!(
+                                "Connection with client {} closed with an error: {}",
+                                tunnel_client.addr.to_string() ,
+                                message.message_string
+                            )
+                            .as_str(),
+                            "tunnel::control::tunnel_client_control"
+                        )
+                        .await;
                         flags.local_cancellation_token.cancel();
                         break;
                     }
