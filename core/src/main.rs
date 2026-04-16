@@ -20,7 +20,7 @@ use crate::common::log::{Level, LogConfig, log};
 use crate::common::model::Shared;
 use crate::config::config_handler::read_config;
 use crate::core::tunnel::control::tunnel_client_control;
-use crate::core::tunnel::model::{Flags, TunnelClient, TunnelStatus};
+use crate::core::tunnel::model::{Flags, TunnelStatus};
 use crate::orm::tunnel_session::database_tunnel_session_batch_thread;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
@@ -30,9 +30,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 use tokio::net::TcpListener;
-use tokio::sync::{Mutex, RwLock, mpsc};
+use tokio::select;
+use tokio::sync::{RwLock, mpsc};
 use tokio::task::JoinSet;
-use tokio::{io, select};
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
 
@@ -156,19 +156,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                                 )
                                 .await;
 
-                                let (stream_rx, stream_tx) = io::split(tls_stream);
-
                                 tunnel_threads.spawn(tunnel_client_control(
                                     Flags {
                                         global_cancellation_token: cancellation_token.clone(),
                                         local_cancellation_token: CancellationToken::new(),
                                     },
                                     shared.clone(),
-                                    Arc::new(TunnelClient {
-                                        stream_tx: Mutex::new(stream_tx),
-                                        stream_rx: Mutex::new(stream_rx),
-                                        addr: client_addr,
-                                    }),
+                                    tls_stream,
+                                    client_addr,
                                     tunnel_status.clone(),
                                 ));
                             }

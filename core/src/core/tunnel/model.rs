@@ -18,7 +18,7 @@ use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 use tokio::io::{ReadHalf, WriteHalf};
 use tokio::net::{TcpStream, tcp};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 use tokio_rustls::server::TlsStream;
 use tokio_util::sync::CancellationToken;
 
@@ -34,8 +34,8 @@ pub struct Flags {
 }
 
 pub struct TunnelClient {
-    pub stream_tx: Mutex<WriteHalf<TlsStream<TcpStream>>>,
-    pub stream_rx: Mutex<ReadHalf<TlsStream<TcpStream>>>,
+    pub stream_tx: WriteHalf<TlsStream<TcpStream>>,
+    pub stream_rx: ReadHalf<TlsStream<TcpStream>>,
     pub addr: SocketAddr,
 }
 

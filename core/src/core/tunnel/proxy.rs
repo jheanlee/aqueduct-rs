@@ -34,7 +34,7 @@ use tokio::time::{Instant, sleep_until};
 pub async fn tunnel_client_proxy_control(
     flags: Flags,
     tunnel_client_user_id: String,
-    tunnel_client: Arc<TunnelClient>,
+    tunnel_client_addr: SocketAddr,
     tunnel_status: Arc<TunnelStatus>,
     control_message_sender_client: ControlMessageSenderClient,
 ) -> Result<(), TunnelError> {
@@ -88,7 +88,7 @@ pub async fn tunnel_client_proxy_control(
         format!(
             "Tunnel port {} assigned to client {}, started listening",
             port,
-            tunnel_client.addr.to_string()
+            tunnel_client_addr.to_string()
         )
         .as_str(),
         "core::tunnel::proxy::tunnel_client_proxy_control",
@@ -122,7 +122,7 @@ pub async fn tunnel_client_proxy_control(
                                     external_client_stream_rx: external_client_stream_rx,
                                     external_client_stream_tx: external_client_stream_tx,
                                     external_client_addr: external_client_addr,
-                                    proxy_control_client_addr: tunnel_client.addr.clone(),
+                                    proxy_control_client_addr: tunnel_client_addr.clone(),
                                     proxy_control_server_addr: SocketAddr::new(
                                         tunnel_status.host.parse().unwrap_or_else(|_| {unreachable!()}),
                                         port
@@ -138,7 +138,7 @@ pub async fn tunnel_client_proxy_control(
                         }
                     }
                     Err(error) => {
-                        log(Level::Warning, format!("Unable to accept external connection for client {}: {:?}", tunnel_client.addr.to_string(), error).as_str(), "core::tunnel::proxy::tunnel_client_proxy_control").await;
+                        log(Level::Warning, format!("Unable to accept external connection for client {}: {:?}", tunnel_client_addr.to_string(), error).as_str(), "core::tunnel::proxy::tunnel_client_proxy_control").await;
                         flags.local_cancellation_token.cancel();
                         break;
                     }
@@ -160,9 +160,8 @@ pub async fn tunnel_client_proxy_control(
 pub async fn tunnel_client_proxy(
     flags: Flags,
     shared: Shared,
-    tunnel_client: Arc<TunnelClient>,
+    mut tunnel_client: TunnelClient,
     mut proxy_client: ProxyClient,
-    tunnel_status: Arc<TunnelStatus>,
 ) -> Result<(), TunnelError> {
     log(
         Level::Debug,
@@ -178,10 +177,6 @@ pub async fn tunnel_client_proxy(
 
     let mut tunnel_buffer = vec![0u8; 32768];
     let mut external_buffer = vec![0u8; 32768];
-
-    //  only this thread would access this stream
-    let mut tunnel_client_stream_rx = tunnel_client.stream_rx.lock().await;
-    let mut tunnel_client_stream_tx = tunnel_client.stream_tx.lock().await;
 
     //  usage counter
     let mut inbound = 0i64;
@@ -202,7 +197,7 @@ pub async fn tunnel_client_proxy(
                 }
                 next_deadline = Instant::now() + Duration::from_secs(COUNTER_UPDATE_INTERVAL);
             }
-            tunnel_client_read = tunnel_client_stream_rx.read(&mut tunnel_buffer) => {
+            tunnel_client_read = tunnel_client.stream_rx.read(&mut tunnel_buffer) => {
                 //  client (service) -> external_client
                 match tunnel_client_read {
                     Ok(0) => { break; }
@@ -251,7 +246,7 @@ pub async fn tunnel_client_proxy(
                 match external_client_read {
                     Ok(0) => { break; }
                     Ok(bytes_read) => {
-                        let write_result = tunnel_client_stream_tx.write_all(&external_buffer[..bytes_read]).await;
+                        let write_result = tunnel_client.stream_tx.write_all(&external_buffer[..bytes_read]).await;
                         match write_result {
                             Ok(_) => {
                                 inbound += bytes_read as i64;
