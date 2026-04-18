@@ -82,12 +82,6 @@ pub async fn database_tunnel_session_batch_thread(
 
     let mut update_map = HashMap::new();
 
-    let mut ids = Vec::new();
-    let mut inbound_expr = CaseStatement::new();
-    let mut outbound_expr = CaseStatement::new();
-    let mut end_time_expr = CaseStatement::new();
-    let mut has_end_time = false;
-
     loop {
         select! {
             biased;
@@ -107,6 +101,12 @@ pub async fn database_tunnel_session_batch_thread(
             _ = cancellation_token.cancelled() => { break; }
             _ = sleep_until(if update_map.len() >= BATCH_LIMIT as usize { Instant::now() } else { next_deadline }) => {
                 if update_map.len() != 0 {
+                    let mut ids = Vec::new();
+                    let mut inbound_expr = CaseStatement::new();
+                    let mut outbound_expr = CaseStatement::new();
+                    let mut end_time_expr = CaseStatement::new();
+                    let mut has_end_time = false;
+
                     for (id, (inbound, outbound, end_time)) in update_map {
                         let id_expr = Expr::col(Column::Id).eq(id.clone());
                         ids.push(id);
@@ -145,17 +145,18 @@ pub async fn database_tunnel_session_batch_thread(
                         .await;
                     }
 
-                    ids = Vec::new();
-                    inbound_expr = CaseStatement::new();
-                    outbound_expr = CaseStatement::new();
-                    end_time_expr = CaseStatement::new();
-                    has_end_time = false;
                     update_map = HashMap::new();
                 }
                 next_deadline = Instant::now() + Duration::from_secs(SLEEP_INTERVAL);
             }
         }
     }
+
+    let mut ids = Vec::new();
+    let mut inbound_expr = CaseStatement::new();
+    let mut outbound_expr = CaseStatement::new();
+    let mut end_time_expr = CaseStatement::new();
+    let mut has_end_time = false;
 
     for (id, (inbound, outbound, end_time)) in update_map {
         let id_expr = Expr::col(Column::Id).eq(id.clone());

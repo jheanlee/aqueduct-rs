@@ -16,9 +16,7 @@
 
 use crate::core::message::error::MessageError;
 use crate::core::message::message::Message;
-use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
-use tokio::net::TcpStream;
-use tokio_rustls::server::TlsStream;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Debug)]
 pub enum Error {
@@ -27,7 +25,7 @@ pub enum Error {
 }
 
 pub async fn read_message(
-    stream: &mut ReadHalf<TlsStream<TcpStream>>,
+    stream: &mut (impl AsyncReadExt + Unpin),
     buffer: &mut [u8],
 ) -> Result<Message, Error> {
     let read_result = stream.read(buffer).await;
@@ -45,7 +43,7 @@ pub async fn read_message(
 }
 
 pub async fn send_message(
-    stream: &mut WriteHalf<TlsStream<TcpStream>>,
+    stream: &mut (impl AsyncWriteExt + Unpin),
     message: &Message,
 ) -> Result<usize, Error> {
     let message_bytes = message.to_vec();
