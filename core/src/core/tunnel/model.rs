@@ -19,7 +19,7 @@ use std::collections::VecDeque;
 use std::net::SocketAddr;
 use tokio::io::{ReadHalf, WriteHalf};
 use tokio::net::{TcpStream, tcp};
-use tokio::sync::RwLock;
+use tokio::sync::{OwnedSemaphorePermit, RwLock};
 use tokio::time;
 use tokio_rustls::server::TlsStream;
 use tokio_util::sync::CancellationToken;
@@ -45,6 +45,7 @@ pub struct TunnelStatus {
     pub host: String,
     pub available_ports: RwLock<VecDeque<u16>>,
     pub pending_external_clients: DashMap<String, ProxyClient>,
+    pub client_connection_limit: u32,
 }
 
 pub struct ProxyClient {
@@ -56,4 +57,6 @@ pub struct ProxyClient {
     pub external_client_addr: SocketAddr,
     pub proxy_control_client_addr: SocketAddr,
     pub proxy_control_server_addr: SocketAddr,
+    pub global_permit: OwnedSemaphorePermit,
+    pub client_permit: OwnedSemaphorePermit,
 }

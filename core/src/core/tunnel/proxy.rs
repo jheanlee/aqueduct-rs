@@ -35,6 +35,7 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::select;
+use tokio::sync::Semaphore;
 use tokio::time::{Instant, sleep_until};
 
 pub async fn tunnel_client_proxy_control(
@@ -43,7 +44,13 @@ pub async fn tunnel_client_proxy_control(
     tunnel_client_addr: SocketAddr,
     tunnel_status: Arc<TunnelStatus>,
     control_message_sender_client: ControlMessageSenderClient,
+    tunnel_global_connection_semaphore: Arc<Semaphore>,
 ) -> Result<(), TunnelError> {
+    //  permit
+    let client_semaphore = Arc::new(Semaphore::new(
+        tunnel_status.client_connection_limit as usize,
+    ));
+
     //  crypto
     let mut client_secret = [0u8; 32];
     rng().fill(&mut client_secret);
@@ -114,11 +121,29 @@ pub async fn tunnel_client_proxy_control(
 
     //  accept external connections
     loop {
+        let accept_future = async {
+            let global_permit = tunnel_global_connection_semaphore
+                .clone()
+                .acquire_owned()
+                .await;
+            let client_permit = client_semaphore.clone().acquire_owned().await;
+            let res = tcp_listener.accept().await;
+            (global_permit, client_permit, res)
+        };
+
         select! {
-            result = tcp_listener.accept() => {
+            (global_permit, client_permit, result) = accept_future => {
+                let Ok(global_permit) = global_permit else {
+                    unreachable!("Semaphore should not be dropped");
+                };
+                let Ok(client_permit) = client_permit else {
+                    unreachable!("Semaphore should not be dropped");
+                };
                 match result {
                     Ok((external_client_stream, external_client_addr)) => {
                         let socket_ref = SockRef::from(&external_client_stream);
+                        socket_ref.set_tcp_nodelay(true)?;
+                        socket_ref.set_reuse_address(true)?;
                         let socket_keep_alive = TcpKeepalive::new()
                             .with_time(Duration::from_secs(60))
                             .with_interval(Duration::from_secs(30))
@@ -149,11 +174,14 @@ pub async fn tunnel_client_proxy_control(
                                     tunnel_status.host.parse().unwrap_or_else(|_| {unreachable!()}),
                                     port
                                 ),
+                                global_permit: global_permit,
+                                client_permit: client_permit
                             }
                         );
 
                         //  notify client of the new user
                         if control_message_sender_client.send_message(MessageType::Proxy, id.clone()).await.is_err() {
+                            //  proxy clients are cleaned up by a cleaner thread if not claimed by users
                             flags.local_cancellation_token.cancel();
                             break;
                         }

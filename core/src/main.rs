@@ -32,7 +32,7 @@ use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::select;
-use tokio::sync::{RwLock, mpsc};
+use tokio::sync::{RwLock, Semaphore, mpsc};
 use tokio::task::JoinSet;
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
@@ -87,10 +87,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     let auth_manager = Arc::new(AuthManager::new());
 
     //  tunnel shared
+    let global_connection_semaphore = Arc::new(Semaphore::new(
+        config.tunnel_global_connection_limit as usize,
+    ));
     let tunnel_status = Arc::new(TunnelStatus {
         host: config.tunnel_host.ip().to_string(),
         available_ports: RwLock::new(config.tunnel_allowed_ports),
         pending_external_clients: DashMap::new(),
+        client_connection_limit: config.tunnel_client_connection_limit,
     });
 
     //  shared
@@ -124,6 +128,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
     let tls_acceptor = TlsAcceptor::from(server_config);
     let tcp_listener = TcpListener::bind(config.tunnel_host).await?;
+    let socket = SockRef::from(&tcp_listener);
+    socket.listen(4096)?;
+    socket.set_reuse_address(true)?;
+    socket.set_tcp_nodelay(true)?;
 
     log(
         Level::Notice,
@@ -172,6 +180,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                                     tls_stream,
                                     client_addr,
                                     tunnel_status.clone(),
+                                    global_connection_semaphore.clone()
                                 ));
                             }
                         }

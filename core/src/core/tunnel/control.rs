@@ -31,7 +31,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{Semaphore, mpsc, watch};
 use tokio::{io, select};
 use tokio_rustls::server::TlsStream;
 
@@ -41,6 +41,7 @@ pub async fn tunnel_client_control(
     tunnel_client_stream: TlsStream<TcpStream>,
     tunnel_client_addr: SocketAddr,
     tunnel_status: Arc<TunnelStatus>,
+    tunnel_global_connection_semaphore: Arc<Semaphore>,
 ) {
     let mut client_type: Option<ClientType> = None;
     let mut buffer = vec![0u8; 1024];
@@ -175,7 +176,8 @@ pub async fn tunnel_client_control(
                                 user_id,
                                 tunnel_client_addr,
                                 tunnel_status.clone(),
-                                control_message_sender_client.clone()
+                                control_message_sender_client.clone(),
+                                tunnel_global_connection_semaphore.clone()
                             ))
                         );
                     }
