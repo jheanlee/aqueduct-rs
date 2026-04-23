@@ -34,6 +34,7 @@ use tokio::net::TcpListener;
 use tokio::select;
 use tokio::sync::{RwLock, Semaphore, mpsc};
 use tokio::task::JoinSet;
+use tokio::time::timeout;
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
 
@@ -98,7 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     });
 
     //  shared
-    let (database_tunnel_session_batch_tx, database_tunnel_session_batch_rx) = mpsc::channel(256);
+    let (database_tunnel_session_batch_tx, database_tunnel_session_batch_rx) = mpsc::channel(2048);
     let shared = Shared {
         db_connection,
         auth_manager,
@@ -142,7 +143,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
     loop {
         select! {
-            biased;
             _ = cancellation_token.cancelled() => { break; }
             _ = tunnel_threads.join_next(), if !tunnel_threads.is_empty() => {}
             accept_result = tcp_listener.accept() => {
@@ -158,12 +158,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                     //  TODO check whitelist
 
                     //  tls
-                    select! {
-                        biased;
-                        _ = cancellation_token.cancelled() => { break; }
-                        _ = tokio::time::sleep(Duration::from_secs(5)) => { continue; }
-                        tls_result = tls_acceptor.accept(stream) => {
-                            if let Ok(tls_stream) = tls_result {
+                    let tls_acceptor_clone = tls_acceptor.clone();
+                    let cancellation_token_clone = cancellation_token.clone();
+                    let shared_clone = shared.clone();
+                    let tunnel_status_clone = tunnel_status.clone();
+                    let global_connection_semaphore_clone = global_connection_semaphore.clone();
+
+                    tunnel_threads.spawn(async move {
+                        match timeout(Duration::from_millis(5000), tls_acceptor_clone.accept(stream)).await {
+                            Ok(Ok(tls_stream)) => {
                                 log(
                                     Level::Info,
                                     format!("Connection accepted from {}", client_addr.to_string()).as_str(),
@@ -171,20 +174,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                                 )
                                 .await;
 
-                                tunnel_threads.spawn(tunnel_client_control(
+                                tunnel_client_control(
                                     Flags {
-                                        global_cancellation_token: cancellation_token.clone(),
+                                        global_cancellation_token: cancellation_token_clone,
                                         local_cancellation_token: CancellationToken::new(),
                                     },
-                                    shared.clone(),
+                                    shared_clone,
                                     tls_stream,
                                     client_addr,
-                                    tunnel_status.clone(),
-                                    global_connection_semaphore.clone()
-                                ));
+                                    tunnel_status_clone,
+                                    global_connection_semaphore_clone
+                                ).await;
                             }
+                            _ => {}
                         }
-                    }
+                    });
                 }
             }
         }

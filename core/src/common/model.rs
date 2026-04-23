@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 use crate::common::auth_manager::AuthManager;
+use crate::orm::tunnel_session::DatabaseTunnelSessionAction;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -22,5 +23,5 @@ use tokio::sync::mpsc;
 pub struct Shared {
     pub db_connection: DatabaseConnection,
     pub auth_manager: Arc<AuthManager>,
-    pub database_tunnel_session_batch_tx: mpsc::Sender<(String, i64, i64, bool)>,
+    pub database_tunnel_session_batch_tx: mpsc::Sender<DatabaseTunnelSessionAction>,
 }

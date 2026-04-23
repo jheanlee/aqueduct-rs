@@ -15,12 +15,12 @@
  */
 use crate::common::log::{Level, log};
 use crate::common::model::Shared;
-use crate::orm::error::Error;
 use entity::entities::tunnel_sessions::{ActiveModel, Column, Entity};
-use sea_orm::ExprTrait;
 use sea_orm::sea_query::{CaseStatement, Expr, Query};
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
+use sea_orm::{EntityTrait, ExprTrait};
 use std::collections::HashMap;
+use std::mem::take;
 use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::select;
@@ -28,78 +28,79 @@ use tokio::sync::mpsc;
 use tokio::time::{Instant, sleep_until};
 use tokio_util::sync::CancellationToken;
 
-pub async fn new_tunnel_session(
-    shared: Shared,
-    id: String,
-    user_id: String,
-    tunnel_client: SocketAddr,
-    external_client: SocketAddr,
-) -> Result<(), Error> {
-    ActiveModel {
-        id: Set(id),
-        user_id: Set(user_id),
-        tunnel_client: Set(tunnel_client.to_string()),
-        external_client: Set(external_client.to_string()),
-        inbound: Set(0),
-        outbound: Set(0),
-        start_time: Set(chrono::Utc::now()),
-        end_time: Set(None),
-    }
-    .insert(&shared.db_connection)
-    .await?;
-    Ok(())
+pub enum DatabaseTunnelSessionAction {
+    Insert {
+        id: String,
+        user_id: String,
+        tunnel_client: SocketAddr,
+        external_client: SocketAddr,
+    },
+    Update {
+        id: String,
+        inbound: i64,
+        outbound: i64,
+        closed: bool,
+    },
 }
-
-// pub async fn update_tunnel_session(
-//     shared: Shared,
-//     id: String,
-//     inbound: i64,
-//     outbound: i64,
-//     closed: bool,
-// ) -> Result<(), Error> {
-//     let mut query = Entity::update_many()
-//     .filter(Column::Id.eq(id))
-//     .col_expr(Column::Inbound, Expr::col(Column::Inbound).add(inbound))
-//     .col_expr(Column::Outbound, Expr::col(Column::Outbound).add(outbound));
-//
-//     if closed {
-//         query = query.col_expr(Column::EndTime, Expr::value(Some(chrono::Utc::now())));
-//     }
-//
-//     query.clone().exec(&shared.db_connection).await?;
-//     Ok(())
-// }
 
 pub async fn database_tunnel_session_batch_thread(
     shared: Shared,
-    mut database_tunnel_session_batch_rx: mpsc::Receiver<(String, i64, i64, bool)>,
+    mut database_tunnel_session_batch_rx: mpsc::Receiver<DatabaseTunnelSessionAction>,
     cancellation_token: CancellationToken,
 ) {
     const SLEEP_INTERVAL: u64 = 60;
     const BATCH_LIMIT: u16 = 500;
 
     let mut next_deadline = Instant::now() + Duration::from_secs(SLEEP_INTERVAL);
+    let mut insert_list = Vec::new();
 
     let mut update_map = HashMap::new();
 
     loop {
+        let should_flush = insert_list.len() + update_map.len() >= BATCH_LIMIT as usize;
         select! {
             biased;
             request = database_tunnel_session_batch_rx.recv() => {
-                let Some((id, inbound, outbound, closed)) = request else {
-                    break;
-                };
-
-                let entry = update_map.entry(id).or_insert((0, 0, None));
-
-                entry.0 += inbound;
-                entry.1 += outbound;
-                if closed {
-                    entry.2 = Some(chrono::Utc::now());
+                match request {
+                    Some(DatabaseTunnelSessionAction::Insert { id, user_id, tunnel_client, external_client }) => {
+                        insert_list.push(ActiveModel {
+                            id: Set(id),
+                            user_id: Set(user_id),
+                            tunnel_client: Set(tunnel_client.to_string()),
+                            external_client: Set(external_client.to_string()),
+                            inbound: Set(0),
+                            outbound: Set(0),
+                            start_time: Set(chrono::Utc::now()),
+                            end_time: Set(None),
+                        });
+                    }
+                    Some(DatabaseTunnelSessionAction::Update { id, inbound, outbound, closed }) => {
+                        let entry = update_map.entry(id).or_insert((0, 0, None));
+                        entry.0 += inbound;
+                        entry.1 += outbound;
+                        if closed {
+                            entry.2 = Some(chrono::Utc::now());
+                        }
+                    }
+                    None => break,
                 }
             }
             _ = cancellation_token.cancelled() => { break; }
-            _ = sleep_until(if update_map.len() >= BATCH_LIMIT as usize { Instant::now() } else { next_deadline }) => {
+            _ = sleep_until(if should_flush { Instant::now() } else { next_deadline }) => {
+                //  bulk insert
+                if !insert_list.is_empty() {
+                    if let Err(error) =
+                        Entity::insert_many(take(&mut insert_list)).exec(&shared.db_connection).await {
+                        log(
+                            Level::Warning,
+                            format!("Unable to insert into database: {:?}", error).as_str(),
+                            "orm::tunnel_session::database_tunnel_session_batch_thread"
+                        )
+                        .await;
+                    }
+                }
+
+                //  bulk update
                 if update_map.len() != 0 {
                     let mut ids = Vec::new();
                     let mut inbound_expr = CaseStatement::new();
@@ -152,6 +153,23 @@ pub async fn database_tunnel_session_batch_thread(
         }
     }
 
+    //  clean up
+    //  bulk insert
+    if !insert_list.is_empty() {
+        if let Err(error) = Entity::insert_many(insert_list)
+            .exec(&shared.db_connection)
+            .await
+        {
+            log(
+                Level::Warning,
+                format!("Unable to insert into database: {:?}", error).as_str(),
+                "orm::tunnel_session::database_tunnel_session_batch_thread",
+            )
+            .await;
+        }
+    }
+
+    //  bulk update
     let mut ids = Vec::new();
     let mut inbound_expr = CaseStatement::new();
     let mut outbound_expr = CaseStatement::new();
