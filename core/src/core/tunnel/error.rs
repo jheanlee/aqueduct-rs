@@ -23,6 +23,7 @@ pub enum TunnelError {
     MessageError(MessageError),
     IoError(std::io::Error),
     NoPortsAvailable,
+    HmacInvalidLengthError(hmac::digest::InvalidLength),
 }
 
 impl std::fmt::Display for TunnelError {
@@ -32,6 +33,7 @@ impl std::fmt::Display for TunnelError {
             Self::IoError(e) => write!(f, "IoError: {e}"),
             Self::NoPortsAvailable => write!(f, "no ports available"),
             Self::MpscMessageSendError(e) => write!(f, "MpscSendError: {e}"),
+            Self::HmacInvalidLengthError(e) => write!(f, "HmacError: {e}"),
         }
     }
 }
@@ -62,5 +64,11 @@ impl From<crate::core::socket::io::Error> for TunnelError {
 impl From<mpsc::error::SendError<Message>> for TunnelError {
     fn from(error: mpsc::error::SendError<Message>) -> Self {
         Self::MpscMessageSendError(error)
+    }
+}
+
+impl From<hmac::digest::InvalidLength> for TunnelError {
+    fn from(error: hmac::digest::InvalidLength) -> Self {
+        Self::HmacInvalidLengthError(error)
     }
 }

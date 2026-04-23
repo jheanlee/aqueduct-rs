@@ -188,7 +188,7 @@ pub async fn tunnel_client_control(
                             handle_bad_request_stream(flags.clone(), &mut tunnel_client_tx, tunnel_client_addr).await;
                             break;
                         };
-                        let Some(proxy_client) = tunnel_status.proxy_queue.write().await.remove(&client_info.proxy_id) else {
+                        let Some((_, proxy_client)) = tunnel_status.pending_external_clients.remove(&client_info.proxy_id) else {
                             handle_bad_request_stream(flags.clone(), &mut tunnel_client_tx, tunnel_client_addr).await;
                             break;
                         };
@@ -229,11 +229,6 @@ pub async fn tunnel_client_control(
                         );
                         break;
                     }
-                    MessageType::Port => {
-                        //  does not occur under normal circumstances
-                        flags.local_cancellation_token.cancel();
-                        break;
-                    },
                     MessageType::Close => {
                         flags.local_cancellation_token.cancel();
                         break;

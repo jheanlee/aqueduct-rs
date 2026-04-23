@@ -16,12 +16,18 @@
 
 use crate::common::log::{Level, log};
 use crate::common::model::Shared;
-use crate::core::message::message::MessageType;
+use crate::core::message::message::{ClientServiceMessage, MessageType};
 use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::error::TunnelError::NoPortsAvailable;
 use crate::core::tunnel::message_handler::ControlMessageSenderClient;
 use crate::core::tunnel::model::{Flags, ProxyClient, TunnelClient, TunnelStatus};
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
+use hmac::{Hmac, KeyInit, Mac};
 use nanoid::nanoid;
+use rand::{RngExt, rng};
+use serde_json::to_string;
+use sha2::Sha256;
 use socket2::{SockRef, TcpKeepalive};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -38,6 +44,10 @@ pub async fn tunnel_client_proxy_control(
     tunnel_status: Arc<TunnelStatus>,
     control_message_sender_client: ControlMessageSenderClient,
 ) -> Result<(), TunnelError> {
+    //  crypto
+    let mut client_secret = [0u8; 32];
+    rng().fill(&mut client_secret);
+
     //  assign a port
     let mut tcp_listener = None;
     {
@@ -73,10 +83,17 @@ pub async fn tunnel_client_proxy_control(
         Err(NoPortsAvailable)?
     };
 
-    //  send port number to client
+    //  send port number and secret to client
     let port = tcp_listener.local_addr()?.port();
     if control_message_sender_client
-        .send_message(MessageType::Port, format!("{port}"))
+        .send_message(
+            MessageType::Service,
+            to_string(&ClientServiceMessage {
+                port,
+                secret: BASE64_STANDARD.encode(client_secret),
+            })
+            .unwrap_or_else(|_| unreachable!()),
+        )
         .await
         .is_err()
     {
@@ -110,26 +127,30 @@ pub async fn tunnel_client_proxy_control(
 
                         //  generate id
                         let id = nanoid!();
-                        {
-                            //  insert into queue
-                            let (external_client_stream_rx, external_client_stream_tx) = external_client_stream.into_split();
-                            let mut proxy_queue = tunnel_status.proxy_queue.write().await;
-                            proxy_queue.insert(
-                                id.clone(),
-                                ProxyClient {
-                                    proxy_id: id.clone(),
-                                    tunnel_client_user_id: tunnel_client_user_id.clone(),
-                                    external_client_stream_rx: external_client_stream_rx,
-                                    external_client_stream_tx: external_client_stream_tx,
-                                    external_client_addr: external_client_addr,
-                                    proxy_control_client_addr: tunnel_client_addr.clone(),
-                                    proxy_control_server_addr: SocketAddr::new(
-                                        tunnel_status.host.parse().unwrap_or_else(|_| {unreachable!()}),
-                                        port
-                                    ),
-                                }
-                            );
-                        }
+
+                        let mut hmac: Hmac<Sha256> = Hmac::new_from_slice(&client_secret)?;
+                        hmac.update(id.as_bytes());
+                        let id_hash_bytes = hmac.finalize().into_bytes();
+                        let id_hash = BASE64_STANDARD.encode(id_hash_bytes);
+
+                        //  insert into queue
+                        let (external_client_stream_rx, external_client_stream_tx) = external_client_stream.into_split();
+                        tunnel_status.pending_external_clients.insert(
+                            id_hash,
+                            ProxyClient {
+                                timestamp: Instant::now(),
+                                proxy_id: id.clone(),
+                                tunnel_client_user_id: tunnel_client_user_id.clone(),
+                                external_client_stream_rx: external_client_stream_rx,
+                                external_client_stream_tx: external_client_stream_tx,
+                                external_client_addr: external_client_addr,
+                                proxy_control_client_addr: tunnel_client_addr.clone(),
+                                proxy_control_server_addr: SocketAddr::new(
+                                    tunnel_status.host.parse().unwrap_or_else(|_| {unreachable!()}),
+                                    port
+                                ),
+                            }
+                        );
 
                         //  notify client of the new user
                         if control_message_sender_client.send_message(MessageType::Proxy, id.clone()).await.is_err() {

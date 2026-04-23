@@ -21,12 +21,13 @@ use crate::common::model::Shared;
 use crate::config::config_handler::read_config;
 use crate::core::tunnel::control::tunnel_client_control;
 use crate::core::tunnel::model::{Flags, TunnelStatus};
+use crate::core::tunnel::pending_cleaner::pending_client_cleaner;
 use crate::orm::tunnel_session::database_tunnel_session_batch_thread;
+use dashmap::DashMap;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use sea_orm::Database;
 use socket2::{SockRef, TcpKeepalive};
-use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 use tokio::net::TcpListener;
@@ -89,7 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     let tunnel_status = Arc::new(TunnelStatus {
         host: config.tunnel_host.ip().to_string(),
         available_ports: RwLock::new(config.tunnel_allowed_ports),
-        proxy_queue: RwLock::new(HashMap::new()),
+        pending_external_clients: DashMap::new(),
     });
 
     //  shared
@@ -99,6 +100,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         auth_manager,
         database_tunnel_session_batch_tx,
     };
+
+    //  pending external client cleaner
+    let pending_cleaner_thread = tokio::spawn(pending_client_cleaner(
+        cancellation_token.clone(),
+        tunnel_status.clone(),
+    ));
 
     //  api
     let api_thread = tokio::spawn(api_control(
@@ -177,6 +184,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     cancellation_token.cancel();
     let _ = api_thread.await;
     let _ = database_tunnel_sessions_batch_thread.await;
+    let _ = pending_cleaner_thread.await;
     tunnel_threads.join_all().await;
+
     Ok(())
 }

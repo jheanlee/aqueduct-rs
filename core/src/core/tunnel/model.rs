@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
-use std::collections::{HashMap, VecDeque};
+use dashmap::DashMap;
+use std::collections::VecDeque;
 use std::net::SocketAddr;
 use tokio::io::{ReadHalf, WriteHalf};
 use tokio::net::{TcpStream, tcp};
 use tokio::sync::RwLock;
+use tokio::time;
 use tokio_rustls::server::TlsStream;
 use tokio_util::sync::CancellationToken;
 
@@ -42,10 +44,11 @@ pub struct TunnelClient {
 pub struct TunnelStatus {
     pub host: String,
     pub available_ports: RwLock<VecDeque<u16>>,
-    pub proxy_queue: RwLock<HashMap<String, ProxyClient>>,
+    pub pending_external_clients: DashMap<String, ProxyClient>,
 }
 
 pub struct ProxyClient {
+    pub timestamp: time::Instant,
     pub proxy_id: String,
     pub tunnel_client_user_id: String,
     pub external_client_stream_rx: tcp::OwnedReadHalf,

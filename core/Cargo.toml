@@ -8,16 +8,20 @@ license = "Apache-2.0"
 aqueduct-rs-entity = { path = "../entity" }
 argon2 = "0.5.3"
 axum = "0.8.8"
+base64 = "0.22.1"
 chrono = "0.4.43"
 clap = { version = "4.5.61", features = ["derive"] }
+dashmap = "6.1.0"
 dotenv = "0.15.0"
+hmac = "0.13.0"
 log = "0.4.29"
-nanoid = "0.4.0"
-openssl = "0.10.76"
+nanoid = "0.5.0"
+rand = "0.10.1"
 rustls = "0.23.37"
 sea-orm = "2.0.0-rc.37"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
+sha2 = "0.11.0"
 socket2 = "0.6.3"
 tokio = { version = "1.51.0", features = ["macros", "net", "rt", "rt-multi-thread", "sync", "io-util", "time"] }
 tokio-rustls = "0.26.4"

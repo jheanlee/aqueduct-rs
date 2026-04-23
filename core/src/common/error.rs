@@ -21,7 +21,6 @@ pub enum Error {
     MessageError(MessageError),
     TunnelError(TunnelError),
     AcquireError(tokio::sync::AcquireError),
-    OpensslError(openssl::error::ErrorStack),
     Argon2HashError(argon2::password_hash::Error),
     TokioJoinError(tokio::task::JoinError),
 }
@@ -32,7 +31,6 @@ impl std::fmt::Display for Error {
             Error::MessageError(e) => write!(f, "MessageError: {e}"),
             Error::TunnelError(e) => write!(f, "TunnelError: {e}"),
             Error::AcquireError(e) => write!(f, "AcquireError: {e}"),
-            Error::OpensslError(e) => write!(f, "OpensslError: {e}"),
             Error::Argon2HashError(e) => write!(f, "Argon2HashError: {e}"),
             Error::TokioJoinError(e) => write!(f, "TokioJoinError: {e}"),
         }
@@ -56,12 +54,6 @@ impl From<MessageError> for Error {
 impl From<tokio::sync::AcquireError> for Error {
     fn from(error: tokio::sync::AcquireError) -> Self {
         Self::AcquireError(error)
-    }
-}
-
-impl From<openssl::error::ErrorStack> for Error {
-    fn from(error: openssl::error::ErrorStack) -> Self {
-        Self::OpensslError(error)
     }
 }
 
