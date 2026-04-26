@@ -13,6 +13,7 @@ chrono = "0.4.43"
 clap = { version = "4.5.61", features = ["derive"] }
 dashmap = "6.1.0"
 dotenv = "0.15.0"
+futures = "0.3.32"
 hmac = "0.13.0"
 log = "0.4.29"
 nanoid = "0.5.0"
@@ -25,7 +26,8 @@ sha2 = "0.11.0"
 socket2 = "0.6.3"
 tokio = { version = "1.51.0", features = ["macros", "net", "rt", "rt-multi-thread", "sync", "io-util", "time"] }
 tokio-rustls = "0.26.4"
-tokio-util = "0.7.18"
+tokio-stream = "0.1.18"
+tokio-util = { version = "0.7.18", features = ["codec"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 oslog = "0.2.0"

@@ -46,7 +46,6 @@ pub async fn tunnel_client_control(
     tunnel_global_connection_semaphore: Arc<Semaphore>,
 ) {
     let mut client_type: Option<ClientType> = None;
-    let mut buffer = vec![0u8; 1024];
 
     let (tunnel_client_rx, tunnel_client_tx) = io::split(tunnel_client_stream);
     let mut tunnel_client_tx = Some(tunnel_client_tx);
@@ -69,7 +68,7 @@ pub async fn tunnel_client_control(
             let Some(tunnel_client_rx_ref) = tunnel_client_rx.as_mut() else {
                 unreachable!(); //  This thread cannot not be reading if ownership is transferred
             };
-            read_message(tunnel_client_rx_ref, &mut buffer).await
+            read_message(tunnel_client_rx_ref).await
         };
 
         select! {

@@ -24,6 +24,7 @@ pub enum TunnelError {
     IoError(std::io::Error),
     NoPortsAvailable,
     HmacInvalidLengthError(hmac::digest::InvalidLength),
+    ClientClosed,
 }
 
 impl std::fmt::Display for TunnelError {
@@ -34,6 +35,7 @@ impl std::fmt::Display for TunnelError {
             Self::NoPortsAvailable => write!(f, "no ports available"),
             Self::MpscMessageSendError(e) => write!(f, "MpscSendError: {e}"),
             Self::HmacInvalidLengthError(e) => write!(f, "HmacError: {e}"),
+            Self::ClientClosed => write!(f, "Client closed"),
         }
     }
 }
@@ -57,6 +59,7 @@ impl From<crate::core::socket::io::Error> for TunnelError {
         match error {
             crate::core::socket::io::Error::MessageError(error) => Self::MessageError(error),
             crate::core::socket::io::Error::IoError(error) => Self::IoError(error),
+            crate::core::socket::io::Error::ClientClosed => Self::ClientClosed,
         }
     }
 }
