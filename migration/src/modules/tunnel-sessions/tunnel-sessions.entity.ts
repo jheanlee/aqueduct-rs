@@ -14,22 +14,30 @@
  * limitations under the License.
  */
 
-import { Entity, ManyToOne, PrimaryKey, Property } from "@mikro-orm/core";
+import {
+  Entity,
+  ManyToOne,
+  PrimaryKey,
+  Property,
+  Unique,
+} from "@mikro-orm/core";
 import { TunnelUsers } from "../tunnel-users/tunnel-users.entity.js";
 
 @Entity()
+@Unique({ properties: ["user", "bucketStart", "tunnelClient"] })
 export class TunnelSessions {
-  @PrimaryKey({ length: 21 })
+  @PrimaryKey({ type: "bigint", autoincrement: true })
   id!: string;
 
   @ManyToOne(() => TunnelUsers)
   user!: TunnelUsers;
 
+  @Property({ type: "timestamp" })
+  bucketStart!: Date;
+
+  //  ip address
   @Property()
   tunnelClient!: string;
-
-  @Property()
-  externalClient!: string;
 
   @Property({ type: "bigint" })
   inbound!: string;
@@ -37,9 +45,6 @@ export class TunnelSessions {
   @Property({ type: "bigint" })
   outbound!: string;
 
-  @Property({ type: "datetime" })
-  startTime!: Date;
-
-  @Property({ type: "datetime", nullable: true })
-  endTime!: Date;
+  @Property({ type: "bigint" })
+  external_connection_count!: string;
 }

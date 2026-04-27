@@ -25,9 +25,13 @@ pub struct Model {
     pub id: String,
     #[sea_orm(column_type = "Text", unique)]
     pub username: String,
+    #[sea_orm(column_type = "Text", unique)]
+    pub token: String,
     #[sea_orm(column_type = "Text")]
     pub hashed_password: String,
-    pub salt: String,
+    #[sea_orm(column_type = "Text")]
+    pub label: String,
+    pub last_login: DateTime,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

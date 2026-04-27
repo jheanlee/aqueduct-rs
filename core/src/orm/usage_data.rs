@@ -28,6 +28,7 @@ pub struct TunnelUserData {
 }
 
 pub async fn get_tunnel_user_data(shared: Shared, id: &str) -> Result<TunnelUserData, Error> {
+    //  TODO change to adopt the new format
     let user = tunnel_users::Entity::find_by_id(id)
         .one(&shared.db_connection)
         .await?

@@ -25,11 +25,18 @@ export class TunnelUsers {
   @Unique()
   username!: string;
 
+  //  `aq_` + 32 random bytes, base58 encoded
+  @Property({ type: "text" })
+  @Unique()
+  token!: string;
+
   //  hashed with argon2-id
   @Property({ type: "text" })
   hashedPassword!: string;
 
-  //  16 random bytes, base64 encoded, padding omitted
-  @Property({ length: 22 })
-  salt!: string;
+  @Property({ type: "text" })
+  label!: string;
+
+  @Property({ type: "timestamp" })
+  lastLogin!: Date;
 }

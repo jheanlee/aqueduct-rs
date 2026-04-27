@@ -15,14 +15,13 @@
  */
 use crate::common::log::{Level, log};
 use crate::common::model::Shared;
-use chrono::{DateTime, Utc};
+use chrono::{NaiveDateTime, Timelike, Utc};
 use entity::entities::tunnel_sessions::{ActiveModel, Column, Entity};
-use sea_orm::sea_query::{CaseStatement, Expr, Query};
-use sea_orm::{ActiveModelTrait, ConnectionTrait, DbConn, Set};
-use sea_orm::{EntityTrait, ExprTrait};
+use sea_orm::prelude::Expr;
+use sea_orm::sea_query::OnConflict;
+use sea_orm::{DbConn, EntityTrait, ExprTrait, Iden, Set};
 use std::collections::HashMap;
 use std::mem::take;
-use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::select;
 use tokio::sync::mpsc;
@@ -31,17 +30,12 @@ use tokio::time::{Instant, sleep_until};
 use tokio_util::sync::CancellationToken;
 
 pub enum DatabaseTunnelSessionAction {
-    Insert {
-        id: String,
-        user_id: String,
-        tunnel_client: SocketAddr,
-        external_client: SocketAddr,
-    },
     Update {
-        id: String,
+        user_id: String,
+        tunnel_client: String,
         inbound: i64,
         outbound: i64,
-        closed: bool,
+        external_connection_count_update: bool,
     },
 }
 
@@ -50,53 +44,51 @@ pub async fn database_tunnel_session_batch_thread(
     mut database_tunnel_session_batch_rx: mpsc::Receiver<DatabaseTunnelSessionAction>,
     cancellation_token: CancellationToken,
 ) {
-    const SLEEP_INTERVAL: u64 = 60;
+    const SLEEP_INTERVAL_SEC: u64 = 60;
+    const BUCKET_LIMIT_MIN: u32 = 10;
     const BATCH_LIMIT: u16 = 500;
 
-    let mut next_deadline = Instant::now() + Duration::from_secs(SLEEP_INTERVAL);
-    let mut insert_list = Vec::new();
+    assert!(SLEEP_INTERVAL_SEC < BUCKET_LIMIT_MIN as u64 * 60);
+
+    let mut next_deadline = Instant::now() + Duration::from_secs(SLEEP_INTERVAL_SEC);
     let mut update_map = HashMap::new();
 
     let mut database_update_threads = JoinSet::new();
 
     loop {
-        let should_flush = insert_list.len() + update_map.len() >= BATCH_LIMIT as usize;
+        let should_flush = update_map.len() >= BATCH_LIMIT as usize;
         select! {
             biased;
             _ = database_update_threads.join_next(), if !database_update_threads.is_empty() => {}
             _ = sleep_until(if should_flush { Instant::now() } else { next_deadline }) => {
                 {
-                    let insert_list = take(&mut insert_list);
                     let update_map = take(&mut update_map);
-                    //  TODO: race condition if latency too high
                     database_update_threads.spawn(
-                        flush_to_database(shared.db_connection.clone(), insert_list, update_map)
+                        flush_to_database(shared.db_connection.clone(), update_map)
                     );
                 }
 
-                next_deadline = Instant::now() + Duration::from_secs(SLEEP_INTERVAL);
+                next_deadline = Instant::now() + Duration::from_secs(SLEEP_INTERVAL_SEC);
             }
             request = database_tunnel_session_batch_rx.recv() => {
                 match request {
-                    Some(DatabaseTunnelSessionAction::Insert { id, user_id, tunnel_client, external_client }) => {
-                        insert_list.push(ActiveModel {
-                            id: Set(id),
-                            user_id: Set(user_id),
-                            tunnel_client: Set(tunnel_client.to_string()),
-                            external_client: Set(external_client.to_string()),
-                            inbound: Set(0),
-                            outbound: Set(0),
-                            start_time: Set(Utc::now()),
-                            end_time: Set(None),
-                        });
-                    }
-                    Some(DatabaseTunnelSessionAction::Update { id, inbound, outbound, closed }) => {
-                        let entry = update_map.entry(id).or_insert((0, 0, None));
-                        entry.0 += inbound;
-                        entry.1 += outbound;
-                        if closed {
-                            entry.2 = Some(Utc::now());
-                        }
+                    Some(DatabaseTunnelSessionAction::Update { user_id, tunnel_client, inbound, outbound, external_connection_count_update }) => {
+                        update_map
+                            .entry(user_id.clone() + tunnel_client.as_str())
+                            .and_modify(|v| {
+                                v.inbound = Set(v.inbound.clone().unwrap() + inbound);
+                                v.outbound = Set(v.outbound.clone().unwrap() + outbound);
+                                v.external_connection_count = Set(v.external_connection_count.clone().unwrap() + external_connection_count_update as i64)
+                            })
+                            .or_insert(ActiveModel {
+                                id: Default::default(),
+                                user_id: Set(user_id),
+                                bucket_start: Set(bucket_time(BUCKET_LIMIT_MIN)),
+                                tunnel_client: Set(tunnel_client),
+                                inbound: Set(inbound),
+                                outbound: Set(outbound),
+                                external_connection_count: Set(external_connection_count_update as i64),
+                            });
                     }
                     None => break,
                 }
@@ -106,75 +98,40 @@ pub async fn database_tunnel_session_batch_thread(
     }
 
     //  clean up
-    flush_to_database(shared.db_connection.clone(), insert_list, update_map).await;
+    flush_to_database(shared.db_connection.clone(), update_map).await;
 }
 
-async fn flush_to_database(
-    db_connection: DbConn,
-    insert_list: Vec<ActiveModel>,
-    update_map: HashMap<String, (i64, i64, Option<DateTime<Utc>>)>,
-) {
-    //  bulk insert
-    if !insert_list.is_empty() {
-        if let Err(error) = Entity::insert_many(insert_list).exec(&db_connection).await {
-            log(
-                Level::Warning,
-                format!("Unable to insert into database: {:?}", error).as_str(),
-                "orm::tunnel_session::database_tunnel_session_batch_thread",
-            )
-            .await;
-        }
-    }
-
-    //  bulk update
+async fn flush_to_database(db_connection: DbConn, update_map: HashMap<String, ActiveModel>) {
     if !update_map.is_empty() {
-        let mut ids = Vec::new();
-        let mut inbound_expr = CaseStatement::new();
-        let mut outbound_expr = CaseStatement::new();
-        let mut end_time_expr = CaseStatement::new();
-        let mut has_end_time = false;
+        let table_name = Entity.to_string();
+        let models: Vec<ActiveModel> = update_map.into_iter().map(|(_key, value)| value).collect();
 
-        for (id, (inbound, outbound, end_time)) in update_map {
-            let id_expr = Expr::col(Column::Id).eq(id.clone());
-            ids.push(id);
+        let res = Entity::insert_many(models)
+            .on_conflict(
+                OnConflict::columns([Column::UserId, Column::TunnelClient, Column::BucketStart])
+                    .values([
+                        (
+                            Column::Inbound,
+                            Expr::cust(format!("\"{table_name}\".\"inbound\""))
+                                .add(Expr::cust("EXCLUDED.\"inbound\"")),
+                        ),
+                        (
+                            Column::Outbound,
+                            Expr::cust(format!("\"{table_name}\".\"outbound\""))
+                                .add(Expr::cust("EXCLUDED.\"outbound\"")),
+                        ),
+                        (
+                            Column::ExternalConnectionCount,
+                            Expr::cust(format!("\"{table_name}\".\"external_connection_count\""))
+                                .add(Expr::cust("EXCLUDED.\"external_connection_count\"")),
+                        ),
+                    ])
+                    .clone(),
+            )
+            .exec(&db_connection)
+            .await;
 
-            inbound_expr =
-                inbound_expr.case(id_expr.clone(), Expr::col(Column::Inbound).add(inbound));
-            outbound_expr =
-                outbound_expr.case(id_expr.clone(), Expr::col(Column::Outbound).add(outbound));
-
-            if end_time.is_some() {
-                has_end_time = true;
-                end_time_expr = end_time_expr.case(id_expr, Expr::value(end_time));
-            }
-        }
-
-        let mut query = Query::update();
-        query.table(Entity);
-
-        let mut values = vec![
-            (
-                Column::Inbound,
-                inbound_expr.finally(Expr::col(Column::Inbound)).into(),
-            ),
-            (
-                Column::Outbound,
-                outbound_expr.finally(Expr::col(Column::Outbound)).into(),
-            ),
-        ];
-
-        if has_end_time {
-            values.push((
-                Column::EndTime,
-                end_time_expr.finally(Expr::col(Column::EndTime)).into(),
-            ));
-        }
-
-        query
-            .values(values)
-            .and_where(Expr::col(Column::Id).is_in(ids));
-
-        if let Err(error) = db_connection.execute(&query).await {
+        if let Err(error) = res {
             log(
                 Level::Warning,
                 format!("Unable to update database: {:?}", error).as_str(),
@@ -183,4 +140,18 @@ async fn flush_to_database(
             .await;
         }
     }
+}
+
+fn bucket_time(bucket_limit_min: u32) -> NaiveDateTime {
+    let now = Utc::now();
+    let bucket_minute = now.minute() / bucket_limit_min * bucket_limit_min;
+    let bucket_utc = now
+        .with_minute(bucket_minute)
+        .unwrap()
+        .with_second(0)
+        .unwrap()
+        .with_nanosecond(0)
+        .unwrap();
+
+    bucket_utc.naive_utc()
 }

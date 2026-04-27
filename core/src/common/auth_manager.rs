@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 use crate::common::error::Error;
+use argon2::password_hash::SaltString;
 use argon2::password_hash::rand_core::OsRng;
-use argon2::password_hash::{Salt, SaltString};
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use tokio::sync::Semaphore;
 use tokio::task::spawn_blocking;
@@ -43,26 +43,21 @@ impl AuthManager {
         .await?
     }
 
-    pub async fn hash_password(&self, password: String) -> Result<(String, String), Error> {
+    pub async fn hash_password(&self, password: String) -> Result<String, Error> {
         let _permit = self.semaphore.acquire().await?;
-        let salt = SaltString::generate(OsRng);
-        let (hash, salt) = spawn_blocking(move || {
-            (
-                PasswordUtils::hash_password(password.as_bytes(), salt.as_str()),
-                salt.to_string(),
-            )
-        })
-        .await?;
-        Ok((hash?, salt))
+        let hash =
+            spawn_blocking(move || PasswordUtils::hash_password(password.as_bytes())).await?;
+        Ok(hash?)
     }
 }
 
 struct PasswordUtils;
 
 impl PasswordUtils {
-    fn hash_password(password: &[u8], encoded_salt: &str) -> Result<String, Error> {
+    fn hash_password(password: &[u8]) -> Result<String, Error> {
+        let salt = SaltString::generate(OsRng);
         Ok(Argon2::default()
-            .hash_password(password, Salt::from_b64(encoded_salt)?)?
+            .hash_password(password, salt.as_salt())?
             .to_string())
     }
 

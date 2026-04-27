@@ -21,15 +21,14 @@ use sea_orm::entity::prelude::*;
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "tunnel_sessions")]
 pub struct Model {
-    #[sea_orm(primary_key, auto_increment = false)]
-    pub id: String,
+    #[sea_orm(primary_key)]
+    pub id: i64,
     pub user_id: String,
+    pub bucket_start: DateTime,
     pub tunnel_client: String,
-    pub external_client: String,
     pub inbound: i64,
     pub outbound: i64,
-    pub start_time: DateTimeUtc,
-    pub end_time: Option<DateTimeUtc>,
+    pub external_connection_count: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

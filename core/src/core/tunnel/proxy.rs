@@ -266,12 +266,13 @@ pub async fn tunnel_client_proxy(
                     let _ = shared
                         .database_tunnel_session_batch_tx
                         .send(DatabaseTunnelSessionAction::Update {
-                        id: proxy_client.proxy_id.clone(),
-                        inbound,
-                        outbound,
-                        closed: false,
-                    })
-                    .await; //  only fails when global cancellation token is set
+                            user_id: proxy_client.tunnel_client_user_id.clone(),
+                            tunnel_client: tunnel_client.addr.ip().to_string(),
+                            inbound: inbound,
+                            outbound: outbound,
+                            external_connection_count_update: false,
+                        })
+                        .await; //  only fails when global cancellation token is set
                     inbound = 0;
                     outbound = 0;
                 }
@@ -388,10 +389,11 @@ pub async fn tunnel_client_proxy(
     let _ = shared
         .database_tunnel_session_batch_tx
         .send(DatabaseTunnelSessionAction::Update {
-            id: proxy_client.proxy_id,
-            inbound,
-            outbound,
-            closed: true,
+            user_id: proxy_client.tunnel_client_user_id.clone(),
+            tunnel_client: tunnel_client.addr.ip().to_string(),
+            inbound: inbound,
+            outbound: outbound,
+            external_connection_count_update: false,
         })
         .await; //  only fails when global cancellation token is set
     Ok(())

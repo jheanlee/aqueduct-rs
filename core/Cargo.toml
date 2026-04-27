@@ -9,6 +9,7 @@ aqueduct-rs-entity = { path = "../entity" }
 argon2 = "0.5.3"
 axum = "0.8.8"
 base64 = "0.22.1"
+bs58 = "0.5.1"
 chrono = "0.4.43"
 clap = { version = "4.5.61", features = ["derive"] }
 dashmap = "6.1.0"

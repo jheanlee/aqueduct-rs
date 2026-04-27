@@ -15,8 +15,10 @@
  */
 use crate::common::model::Shared;
 use crate::orm::error::Error;
+use chrono::{DateTime, NaiveDateTime};
 use entity::entities::tunnel_users::{ActiveModel, Column, Entity};
 use nanoid::nanoid;
+use rand::{RngExt, rng};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, Set};
 
 pub async fn authenticate_tunnel_user(
@@ -45,13 +47,19 @@ pub async fn new_tunnel_user(
     username: String,
     password: String,
 ) -> Result<(), Error> {
-    let (hashed_password, salt) = shared.auth_manager.hash_password(password).await?;
+    //  TODO check user
+    let hashed_password = shared.auth_manager.hash_password(password).await?;
+    let mut token_bytes = [0u8; 32];
+    rng().fill(&mut token_bytes);
+    let token = format!("aq_{}", bs58::encode(&token_bytes).into_string());
 
     let user = ActiveModel {
         id: Set(nanoid!()),
         username: Set(username),
+        token: Set(token),
         hashed_password: Set(hashed_password),
-        salt: Set(salt),
+        label: Set(String::new()),
+        last_login: Set(NaiveDateTime::from(DateTime::UNIX_EPOCH.naive_utc())),
     };
 
     user.insert(&shared.db_connection).await?;
@@ -69,9 +77,26 @@ pub async fn modify_tunnel_user_password(
         .ok_or(Error::NotFound)?
         .into_active_model();
 
-    let (hashed_password, salt) = shared.auth_manager.hash_password(new_password).await?;
+    let hashed_password = shared.auth_manager.hash_password(new_password).await?;
     user.hashed_password = Set(hashed_password);
-    user.salt = Set(salt);
+
+    user.update(&shared.db_connection).await?;
+    Ok(())
+}
+
+pub async fn rotate_token(shared: Shared, id: &str) -> Result<(), Error> {
+    //  TODO api
+    let mut user = Entity::find_by_id(id)
+        .one(&shared.db_connection)
+        .await?
+        .ok_or(Error::NotFound)?
+        .into_active_model();
+
+    let mut token_bytes = [0u8; 32];
+    rng().fill(&mut token_bytes);
+    let token = format!("aq_{}", bs58::encode(&token_bytes).into_string());
+
+    user.token = Set(token);
 
     user.update(&shared.db_connection).await?;
     Ok(())
