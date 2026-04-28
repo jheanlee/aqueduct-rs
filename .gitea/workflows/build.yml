@@ -14,10 +14,10 @@ jobs:
         outputs:
             release_built: ${{ steps.set-output.outputs.release_built }}
         steps:
-            -   name: Install Node
+            -   name: Install workflow dependencies
                 run: |
                     apt-get update
-                    apt-get install -y nodejs
+                    apt-get install -y nodejs curl
 
             -   uses: actions/checkout@v4
 
