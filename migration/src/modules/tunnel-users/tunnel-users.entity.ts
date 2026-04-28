@@ -14,16 +14,29 @@
  * limitations under the License.
  */
 
-import { Entity, PrimaryKey, Property } from "@mikro-orm/core";
+import { Entity, PrimaryKey, Property, Unique } from "@mikro-orm/core";
 
 @Entity()
-export class Statistics {
+export class TunnelUsers {
   @PrimaryKey({ length: 21 })
   id!: string;
 
-  @Property({ type: "bigint" })
-  inbound!: string;
+  @Property({ type: "text" })
+  @Unique()
+  username!: string;
 
-  @Property({ type: "bigint" })
-  outbound!: string;
+  //  `aq_` + 32 random bytes, base58 encoded
+  @Property({ type: "text" })
+  @Unique()
+  token!: string;
+
+  //  hashed with argon2-id
+  @Property({ type: "text" })
+  hashedPassword!: string;
+
+  @Property({ type: "text" })
+  label!: string;
+
+  @Property({ type: "timestamp" })
+  lastLogin!: Date;
 }

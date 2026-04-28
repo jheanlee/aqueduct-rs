@@ -25,6 +25,10 @@ use std::str::FromStr;
 pub struct Config {
     pub tunnel_host: SocketAddr,
     pub tunnel_allowed_ports: VecDeque<u16>,
+    pub tunnel_global_connection_limit: u32,
+    pub tunnel_client_connection_limit: u32,
+
+    pub api_host: SocketAddr, //  TODO
 
     pub tls_cert_path: String,
     pub tls_private_key_path: String,
@@ -45,6 +49,9 @@ pub fn read_config() -> Result<Config, ConfigError> {
     let mut config = Config {
         tunnel_host: SocketAddr::from_str("0.0.0.0:30330")?,
         tunnel_allowed_ports: (51000..=51999).collect(),
+        tunnel_global_connection_limit: 10000,
+        tunnel_client_connection_limit: 2048,
+        api_host: SocketAddr::from_str("0.0.0.0:30331")?,
         tls_cert_path: "".to_string(),
         tls_private_key_path: "".to_string(),
         db_name: "aqueduct-rs".to_string(),
@@ -69,6 +76,16 @@ pub fn read_config() -> Result<Config, ConfigError> {
     }
     if let Ok(tunnel_allowed_ports) = std::env::var("AQUEDUCT_TUNNEL_ALLOWED_PORTS") {
         config.tunnel_allowed_ports = parse_port_list(tunnel_allowed_ports.as_str())?.into()
+    }
+    if let Ok(tunnel_global_connection_limit) =
+        std::env::var("AQUEDUCT_TUNNEL_GLOBAL_CONNECTION_LIMIT")
+    {
+        config.tunnel_global_connection_limit = tunnel_global_connection_limit.parse()?;
+    }
+    if let Ok(tunnel_client_connection_limit) =
+        std::env::var("AQUEDUCT_TUNNEL_CLIENT_CONNECTION_LIMIT")
+    {
+        config.tunnel_client_connection_limit = tunnel_client_connection_limit.parse()?;
     }
     if let Ok(tls_cert) = std::env::var("AQUEDUCT_TLS_CERT") {
         config.tls_cert_path = tls_cert;
@@ -108,6 +125,12 @@ pub fn read_config() -> Result<Config, ConfigError> {
     }
     if let Some(tunnel_allowed_ports) = args.tunnel_allowed_ports {
         config.tunnel_allowed_ports = parse_port_list(tunnel_allowed_ports.as_str())?.into();
+    }
+    if let Some(tunnel_global_connection_limit) = args.tunnel_global_connection_limit {
+        config.tunnel_global_connection_limit = tunnel_global_connection_limit;
+    }
+    if let Some(tunnel_client_connection_limit) = args.tunnel_client_connection_limit {
+        config.tunnel_client_connection_limit = tunnel_client_connection_limit;
     }
     if let Some(tls_cert) = args.tls_cert {
         config.tls_cert_path = tls_cert;

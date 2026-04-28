@@ -16,45 +16,54 @@
 
 use crate::core::message::error::MessageError;
 use crate::core::message::message::Message;
-use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
-use tokio::net::TcpStream;
-use tokio_rustls::server::TlsStream;
+use futures::sink::SinkExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio_stream::StreamExt;
+use tokio_util::bytes::Bytes;
+use tokio_util::codec::LengthDelimitedCodec;
 
 #[derive(Debug)]
 pub enum Error {
     MessageError(MessageError),
     IoError(std::io::Error),
+    ClientClosed,
 }
 
-pub async fn read_message(
-    stream: &mut ReadHalf<TlsStream<TcpStream>>,
-    buffer: &mut [u8],
-) -> Result<Message, Error> {
-    let read_result = stream.read(buffer).await;
+impl From<MessageError> for Error {
+    fn from(value: MessageError) -> Self {
+        Self::MessageError(value)
+    }
+}
+
+pub async fn read_message(stream: &mut (impl AsyncReadExt + Unpin)) -> Result<Message, Error> {
+    let mut reader = LengthDelimitedCodec::builder()
+        .length_field_offset(0)
+        .length_field_type::<u8>()
+        .length_adjustment(0)
+        .new_read(stream);
+    let read_result = reader.next().await;
 
     match read_result {
-        Ok(bytes_read) => {
-            let message = Message::from_bytes(buffer, bytes_read);
-            match message {
-                Ok(message) => Ok(message),
-                Err(error) => Err(Error::MessageError(error)),
-            }
-        }
-        Err(error) => Err(Error::IoError(error)),
+        Some(Ok(bytes_read)) => Ok(Message::from_bytes(bytes_read.as_ref(), bytes_read.len())?),
+        Some(Err(error)) => Err(Error::IoError(error)),
+        None => Err(Error::ClientClosed),
     }
 }
 
 pub async fn send_message(
-    stream: &mut WriteHalf<TlsStream<TcpStream>>,
+    stream: &mut (impl AsyncWriteExt + Unpin),
     message: &Message,
 ) -> Result<usize, Error> {
-    let message_bytes = message.to_vec();
+    let mut writer = LengthDelimitedCodec::builder()
+        .length_field_offset(0)
+        .length_field_type::<u8>()
+        .length_adjustment(0)
+        .new_write(stream);
+    let message_bytes = message.to_vec()?;
+    let nbytes = message_bytes.len();
 
-    match message_bytes {
-        Ok(message_bytes) => match stream.write_all(message_bytes.as_slice()).await {
-            Ok(_) => Ok(message_bytes.len()),
-            Err(error) => Err(Error::IoError(error)),
-        },
-        Err(error) => Err(Error::MessageError(error)),
+    match writer.send(Bytes::from(message_bytes)).await {
+        Ok(_) => Ok(nbytes),
+        Err(error) => Err(Error::IoError(error)),
     }
 }

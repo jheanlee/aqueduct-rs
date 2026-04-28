@@ -14,21 +14,27 @@
  * limitations under the License.
  */
 
+use crate::api::control::api_control;
+use crate::common::auth_manager::AuthManager;
 use crate::common::log::{Level, LogConfig, log};
+use crate::common::model::Shared;
 use crate::config::config_handler::read_config;
 use crate::core::tunnel::control::tunnel_client_control;
-use crate::core::tunnel::model::{Flags, TunnelClient, TunnelStatus};
+use crate::core::tunnel::model::{Flags, TunnelStatus};
+use crate::core::tunnel::pending_cleaner::pending_client_cleaner;
+use crate::orm::tunnel_session::database_tunnel_session_batch_thread;
+use dashmap::DashMap;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use sea_orm::Database;
 use socket2::{SockRef, TcpKeepalive};
-use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 use tokio::net::TcpListener;
-use tokio::sync::{Mutex, RwLock};
+use tokio::select;
+use tokio::sync::{RwLock, Semaphore, mpsc};
 use tokio::task::JoinSet;
-use tokio::{io, select};
+use tokio::time::timeout;
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
 
@@ -52,6 +58,7 @@ static LOG_CONFIG: LazyLock<RwLock<LogConfig>> = LazyLock::new(|| {
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     let _ = dotenv::dotenv();
     let config = read_config().map_err(|error| error.to_string())?;
+    let cancellation_token = CancellationToken::new();
 
     //  log
     {
@@ -77,19 +84,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
             .expect("TLS config error"),
     );
 
-    //  shared
-    let cancellation_token = CancellationToken::new();
+    //  auth
+    let auth_manager = Arc::new(AuthManager::new());
+
+    //  tunnel shared
+    let global_connection_semaphore = Arc::new(Semaphore::new(
+        config.tunnel_global_connection_limit as usize,
+    ));
     let tunnel_status = Arc::new(TunnelStatus {
         host: config.tunnel_host.ip().to_string(),
         available_ports: RwLock::new(config.tunnel_allowed_ports),
-        proxy_queue: RwLock::new(HashMap::new()),
-        db_connection: db_connection,
+        pending_external_clients: DashMap::new(),
+        client_connection_limit: config.tunnel_client_connection_limit,
     });
 
+    //  shared
+    let (database_tunnel_session_batch_tx, database_tunnel_session_batch_rx) = mpsc::channel(2048);
+    let shared = Shared {
+        db_connection,
+        auth_manager,
+        database_tunnel_session_batch_tx,
+    };
+
+    //  pending external client cleaner
+    let pending_cleaner_thread = tokio::spawn(pending_client_cleaner(
+        cancellation_token.clone(),
+        tunnel_status.clone(),
+    ));
+
+    //  api
+    let api_thread = tokio::spawn(api_control(
+        shared.clone(),
+        cancellation_token.clone(),
+        config.api_host,
+    ));
+
+    //  tunnel
     let mut tunnel_threads = JoinSet::new();
+    let database_tunnel_sessions_batch_thread = tokio::spawn(database_tunnel_session_batch_thread(
+        shared.clone(),
+        database_tunnel_session_batch_rx,
+        cancellation_token.clone(),
+    ));
 
     let tls_acceptor = TlsAcceptor::from(server_config);
     let tcp_listener = TcpListener::bind(config.tunnel_host).await?;
+    let socket = SockRef::from(&tcp_listener);
+    socket.listen(4096)?;
+    socket.set_reuse_address(true)?;
+    socket.set_tcp_nodelay(true)?;
 
     log(
         Level::Notice,
@@ -100,7 +143,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
     loop {
         select! {
-            biased;
             _ = cancellation_token.cancelled() => { break; }
             _ = tunnel_threads.join_next(), if !tunnel_threads.is_empty() => {}
             accept_result = tcp_listener.accept() => {
@@ -116,36 +158,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                     //  TODO check whitelist
 
                     //  tls
-                    let tls_acceptor = tls_acceptor.clone();
-                    if let Ok(tls_stream) = tls_acceptor.accept(stream).await {
-                        log(
-                            Level::Info,
-                            format!("Connection accepted from {}", client_addr.to_string()).as_str(),
-                            "core::main",
-                        )
-                        .await;
+                    let tls_acceptor_clone = tls_acceptor.clone();
+                    let cancellation_token_clone = cancellation_token.clone();
+                    let shared_clone = shared.clone();
+                    let tunnel_status_clone = tunnel_status.clone();
+                    let global_connection_semaphore_clone = global_connection_semaphore.clone();
 
-                        let (stream_rx, stream_tx) = io::split(tls_stream);
+                    tunnel_threads.spawn(async move {
+                        match timeout(Duration::from_millis(5000), tls_acceptor_clone.accept(stream)).await {
+                            Ok(Ok(tls_stream)) => {
+                                log(
+                                    Level::Info,
+                                    format!("Connection accepted from {}", client_addr.to_string()).as_str(),
+                                    "core::main",
+                                )
+                                .await;
 
-                        tunnel_threads.spawn(tunnel_client_control(
-                            Flags {
-                                global_cancellation_token: cancellation_token.clone(),
-                                local_cancellation_token: CancellationToken::new(),
-                            },
-                            Arc::new(TunnelClient {
-                                stream_tx: Mutex::new(stream_tx),
-                                stream_rx: Mutex::new(stream_rx),
-                                addr: client_addr,
-                            }),
-                            tunnel_status.clone(),
-                        ));
-                    }
+                                tunnel_client_control(
+                                    Flags {
+                                        global_cancellation_token: cancellation_token_clone,
+                                        local_cancellation_token: CancellationToken::new(),
+                                    },
+                                    shared_clone,
+                                    tls_stream,
+                                    client_addr,
+                                    tunnel_status_clone,
+                                    global_connection_semaphore_clone
+                                ).await;
+                            }
+                            _ => {}
+                        }
+                    });
                 }
             }
         }
     }
 
     cancellation_token.cancel();
+    let _ = api_thread.await;
+    let _ = database_tunnel_sessions_batch_thread.await;
+    let _ = pending_cleaner_thread.await;
     tunnel_threads.join_all().await;
+
     Ok(())
 }

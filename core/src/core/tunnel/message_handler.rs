@@ -17,10 +17,13 @@ use crate::common::log::{Level, log};
 use crate::core::message::message::{Message, MessageType};
 use crate::core::socket::io::send_message;
 use crate::core::tunnel::error::TunnelError;
-use crate::core::tunnel::model::{Flags, TunnelClient};
-use std::sync::Arc;
+use crate::core::tunnel::model::Flags;
+use std::net::SocketAddr;
+use tokio::io::WriteHalf;
+use tokio::net::TcpStream;
 use tokio::select;
 use tokio::sync::mpsc;
+use tokio_rustls::server::TlsStream;
 
 #[derive(Clone)]
 pub struct ControlMessageSenderClient {
@@ -49,9 +52,9 @@ impl ControlMessageSenderClient {
 pub async fn tunnel_control_message_sender(
     flags: Flags,
     mut control_rx: mpsc::Receiver<Message>,
-    tunnel_client: Arc<TunnelClient>,
+    mut tunnel_client_tx: WriteHalf<TlsStream<TcpStream>>,
+    tunnel_client_addr: SocketAddr,
 ) {
-    let mut stream_tx = tunnel_client.stream_tx.lock().await;
     loop {
         select! {
             biased;
@@ -67,13 +70,13 @@ pub async fn tunnel_control_message_sender(
                     biased;
                     _global_cancalled = flags.global_cancellation_token.cancelled() => { break; },
                     _client_cancealled = flags.local_cancellation_token.cancelled() => { break; },
-                    write_result = send_message(&mut stream_tx, &message) => {
+                    write_result = send_message(&mut tunnel_client_tx, &message) => {
                         if let Err(error) = write_result {
                             log(
                                 Level::Warning,
                                 format!(
                                     "Unable to send message to client {}: {:?}",
-                                    tunnel_client.addr.to_string(),
+                                    tunnel_client_addr.to_string(),
                                     error
                                 )
                                 .as_str(),

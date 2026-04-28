@@ -13,26 +13,52 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 
 #[derive(Debug)]
-pub enum DbError {
+pub enum Error {
     NotFound,
-    DbErr(sea_orm::DbErr),
+    Unauthorized,
+    Conflict,
+    DatabaseError(sea_orm::DbErr),
+    CommonError(crate::common::error::Error),
 }
 
-impl std::fmt::Display for DbError {
+impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NotFound => write!(f, "resource not found"),
-            Self::DbErr(error) => write!(f, "database error: {error}"),
+            Self::NotFound => write!(f, "Resource not found"),
+            Self::Unauthorized => write!(f, "Unauthorized"),
+            Self::Conflict => write!(f, "Conflict"),
+            Self::DatabaseError(error) => write!(f, "DbErr: {error}"),
+            Self::CommonError(error) => write!(f, "{error}"),
         }
     }
 }
 
-impl std::error::Error for DbError {}
+impl std::error::Error for Error {}
 
-impl From<sea_orm::DbErr> for DbError {
+impl IntoResponse for Error {
+    fn into_response(self) -> Response {
+        match self {
+            Error::NotFound => StatusCode::NOT_FOUND.into_response(),
+            Error::Unauthorized => StatusCode::UNAUTHORIZED.into_response(),
+            Error::Conflict => StatusCode::CONFLICT.into_response(),
+            Error::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            Error::CommonError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        }
+    }
+}
+
+impl From<sea_orm::DbErr> for Error {
     fn from(error: sea_orm::DbErr) -> Self {
-        Self::DbErr(error)
+        Self::DatabaseError(error)
+    }
+}
+
+impl From<crate::common::error::Error> for Error {
+    fn from(error: crate::common::error::Error) -> Self {
+        Self::CommonError(error)
     }
 }
