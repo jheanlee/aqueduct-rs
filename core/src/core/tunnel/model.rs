@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-use sea_orm::DatabaseConnection;
-use std::collections::{HashMap, VecDeque};
+use dashmap::DashMap;
+use std::collections::VecDeque;
 use std::net::SocketAddr;
 use tokio::io::{ReadHalf, WriteHalf};
 use tokio::net::{TcpStream, tcp};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{OwnedSemaphorePermit, RwLock};
+use tokio::time;
 use tokio_rustls::server::TlsStream;
 use tokio_util::sync::CancellationToken;
 
@@ -35,23 +36,27 @@ pub struct Flags {
 }
 
 pub struct TunnelClient {
-    // pub stream: Mutex<TlsStream<TcpStream>>,
-    pub stream_tx: Mutex<WriteHalf<TlsStream<TcpStream>>>,
-    pub stream_rx: Mutex<ReadHalf<TlsStream<TcpStream>>>,
+    pub stream_tx: WriteHalf<TlsStream<TcpStream>>,
+    pub stream_rx: ReadHalf<TlsStream<TcpStream>>,
     pub addr: SocketAddr,
 }
 
 pub struct TunnelStatus {
     pub host: String,
     pub available_ports: RwLock<VecDeque<u16>>,
-    pub proxy_queue: RwLock<HashMap<String, ProxyClient>>,
-    pub db_connection: DatabaseConnection,
+    pub pending_external_clients: DashMap<String, ProxyClient>,
+    pub client_connection_limit: u32,
 }
 
 pub struct ProxyClient {
+    pub timestamp: time::Instant,
+    pub proxy_id: String,
+    pub tunnel_client_user_id: String,
     pub external_client_stream_rx: tcp::OwnedReadHalf,
     pub external_client_stream_tx: tcp::OwnedWriteHalf,
     pub external_client_addr: SocketAddr,
     pub proxy_control_client_addr: SocketAddr,
     pub proxy_control_server_addr: SocketAddr,
+    pub global_permit: OwnedSemaphorePermit,
+    pub client_permit: OwnedSemaphorePermit,
 }

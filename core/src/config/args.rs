@@ -22,6 +22,10 @@ pub struct Args {
     #[arg(long)]
     pub tunnel_allowed_ports: Option<String>,
     #[arg(long)]
+    pub tunnel_global_connection_limit: Option<u32>,
+    #[arg(long)]
+    pub tunnel_client_connection_limit: Option<u32>,
+    #[arg(long)]
     pub tls_cert: Option<String>,
     #[arg(long)]
     pub tls_private_key: Option<String>,

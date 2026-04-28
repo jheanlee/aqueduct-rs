@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 use crate::core::message::error::MessageError;
 use crate::core::tunnel::error::TunnelError;
 
@@ -21,6 +20,9 @@ use crate::core::tunnel::error::TunnelError;
 pub enum Error {
     MessageError(MessageError),
     TunnelError(TunnelError),
+    AcquireError(tokio::sync::AcquireError),
+    Argon2HashError(argon2::password_hash::Error),
+    TokioJoinError(tokio::task::JoinError),
 }
 
 impl std::fmt::Display for Error {
@@ -28,6 +30,9 @@ impl std::fmt::Display for Error {
         match self {
             Error::MessageError(e) => write!(f, "MessageError: {e}"),
             Error::TunnelError(e) => write!(f, "TunnelError: {e}"),
+            Error::AcquireError(e) => write!(f, "AcquireError: {e}"),
+            Error::Argon2HashError(e) => write!(f, "Argon2HashError: {e}"),
+            Error::TokioJoinError(e) => write!(f, "TokioJoinError: {e}"),
         }
     }
 }
@@ -43,5 +48,23 @@ impl From<TunnelError> for Error {
 impl From<MessageError> for Error {
     fn from(error: MessageError) -> Self {
         Self::MessageError(error)
+    }
+}
+
+impl From<tokio::sync::AcquireError> for Error {
+    fn from(error: tokio::sync::AcquireError) -> Self {
+        Self::AcquireError(error)
+    }
+}
+
+impl From<argon2::password_hash::Error> for Error {
+    fn from(error: argon2::password_hash::Error) -> Self {
+        Self::Argon2HashError(error)
+    }
+}
+
+impl From<tokio::task::JoinError> for Error {
+    fn from(error: tokio::task::JoinError) -> Self {
+        Self::TokioJoinError(error)
     }
 }

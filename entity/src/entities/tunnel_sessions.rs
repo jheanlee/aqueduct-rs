@@ -19,17 +19,34 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
-#[sea_orm(table_name = "ip_blacklist")]
+#[sea_orm(table_name = "tunnel_sessions")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub id: i32,
-    #[sea_orm(column_type = "custom(\"inet\")")]
-    pub subnet: IpNetwork,
-    #[sea_orm(column_type = "Text")]
-    pub comment: String,
+    pub id: i64,
+    pub user_id: String,
+    pub bucket_start: DateTime,
+    pub tunnel_client: String,
+    pub inbound: i64,
+    pub outbound: i64,
+    pub external_connection_count: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::tunnel_users::Entity",
+        from = "Column::UserId",
+        to = "super::tunnel_users::Column::Id",
+        on_update = "Cascade",
+        on_delete = "NoAction"
+    )]
+    TunnelUsers,
+}
+
+impl Related<super::tunnel_users::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TunnelUsers.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}

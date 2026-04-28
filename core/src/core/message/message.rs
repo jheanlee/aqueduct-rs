@@ -26,8 +26,6 @@ pub enum MessageType {
     Heartbeat,
     Service, //  service connection
     Proxy,   //  proxy connection
-    // Authentication,
-    Port,
     Close,
     Empty, //  placeholder
     Error,
@@ -38,8 +36,6 @@ impl MessageType {
             Self::Heartbeat => 0x10,
             Self::Service => 0x11,
             Self::Proxy => 0x12,
-            // Self::Authentication => 0x13,
-            Self::Port => 0x20,
             Self::Close => 0xf0,
             Self::Empty => 0xfe,
             Self::Error => 0xff,
@@ -51,8 +47,6 @@ impl MessageType {
             0x10 => Ok(Self::Heartbeat),
             0x11 => Ok(Self::Service),
             0x12 => Ok(Self::Proxy),
-            // 0x13 => Ok(Self::Authentication),
-            0x20 => Ok(Self::Port),
             0xf0 => Ok(Self::Close),
             0xfe => Ok(Self::Empty),
             0xff => Ok(Self::Error),
@@ -138,6 +132,12 @@ pub struct ServiceMessage {
 pub enum ServiceAuth {
     Token { token: String },
     Password { username: String, password: String },
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct ClientServiceMessage {
+    pub port: u16,
+    pub secret: String,
 }
 
 #[derive(serde::Deserialize)]
