@@ -49,7 +49,9 @@ static LOG_CONFIG: LazyLock<RwLock<LogConfig>> = LazyLock::new(|| {
         stdout_filter: Level::Info.into(),
         system_filter: Level::Notice.into(),
         stdout_enabled: true,
+        #[cfg(target_os = "linux")]
         syslog_enabled: false,
+        #[cfg(target_os = "macos")]
         oslog_enabled: false,
     })
 });

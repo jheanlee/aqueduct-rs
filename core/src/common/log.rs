@@ -23,7 +23,9 @@ pub struct LogConfig {
     pub stdout_filter: u8,
     pub system_filter: u8,
     pub stdout_enabled: bool,
+    #[cfg(target_os = "linux")]
     pub syslog_enabled: bool,
+    #[cfg(target_os = "macos")]
     pub oslog_enabled: bool,
 }
 
@@ -78,7 +80,6 @@ mod color_code {
     pub const RED: &str = "\x1b[31m";
     pub const YELLOW: &str = "\x1b[33m";
     pub const FAINT_GRAY: &str = "\x1b[2;90m";
-    pub const CYAN: &str = "\x1b[36m";
 }
 
 fn get_config(
@@ -91,7 +92,9 @@ fn get_config(
         stdout_filter,
         system_filter,
         stdout_enabled,
+        #[cfg(target_os = "linux")]
         syslog_enabled: system_logging_enabled && cfg!(target_os = "linux"),
+        #[cfg(target_os = "macos")]
         oslog_enabled: system_logging_enabled && cfg!(target_os = "macos"),
     }
 }

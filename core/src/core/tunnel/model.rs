@@ -26,7 +26,7 @@ use tokio_util::sync::CancellationToken;
 
 pub enum ClientType {
     Service,
-    Proxy,
+    // Proxy,
 }
 
 #[derive(Clone)]
@@ -50,13 +50,10 @@ pub struct TunnelStatus {
 
 pub struct ProxyClient {
     pub timestamp: time::Instant,
-    pub proxy_id: String,
     pub tunnel_client_user_id: String,
     pub external_client_stream_rx: tcp::OwnedReadHalf,
     pub external_client_stream_tx: tcp::OwnedWriteHalf,
     pub external_client_addr: SocketAddr,
-    pub proxy_control_client_addr: SocketAddr,
-    pub proxy_control_server_addr: SocketAddr,
-    pub global_permit: OwnedSemaphorePermit,
-    pub client_permit: OwnedSemaphorePermit,
+    pub _global_permit: OwnedSemaphorePermit,
+    pub _client_permit: OwnedSemaphorePermit,
 }

@@ -182,21 +182,12 @@ pub async fn tunnel_client_proxy_control(
                                 id_hash,
                                 ProxyClient {
                                     timestamp: Instant::now(),
-                                    proxy_id: id.clone(),
                                     tunnel_client_user_id: tunnel_client_user_id_clone,
                                     external_client_stream_rx: external_client_stream_rx,
                                     external_client_stream_tx: external_client_stream_tx,
                                     external_client_addr: external_client_addr,
-                                    proxy_control_client_addr: tunnel_client_addr.clone(),
-                                    proxy_control_server_addr: SocketAddr::new(
-                                        tunnel_status_clone
-                                            .host
-                                            .parse()
-                                            .unwrap_or_else(|_| {unreachable!("Already parsed at the start of main()")}),
-                                        port
-                                    ),
-                                    global_permit: global_permit,
-                                    client_permit: client_permit
+                                    _global_permit: global_permit,
+                                    _client_permit: client_permit
                                 }
                             );
 

@@ -90,15 +90,15 @@ pub async fn tunnel_client_control(
                         Some(ClientType::Service) => {
                             handle_bad_request_handler(flags.clone(), tunnel_client_addr, control_message_sender_client).await;
                         }
-                        Some(ClientType::Proxy) => {
-                            log(
-                                Level::Debug,
-                                format!("Bad request from {}", tunnel_client_addr.to_string()).as_str(),
-                                "core::tunnel::control::tunnel_client_control",
-                            )
-                            .await;
-                            flags.local_cancellation_token.cancel();
-                        }
+                        // Some(ClientType::Proxy) => {
+                        //     log(
+                        //         Level::Debug,
+                        //         format!("Bad request from {}", tunnel_client_addr.to_string()).as_str(),
+                        //         "core::tunnel::control::tunnel_client_control",
+                        //     )
+                        //     .await;
+                        //     flags.local_cancellation_token.cancel();
+                        // }
                         None => {
                             handle_bad_request_stream(flags.clone(), &mut tunnel_client_tx, tunnel_client_addr).await;
                         }
@@ -208,8 +208,9 @@ pub async fn tunnel_client_control(
                             unreachable!("tunnel_client_rx only taken when client_type is set");
                         };
 
-                        authentication_timeout = None;
-                        client_type = Some(ClientType::Proxy);
+                        // //  breaks out of the loop, no need to assign
+                        // authentication_timeout = None;
+                        // client_type = Some(ClientType::Proxy);
 
                         if let Err(error) = shared.database_tunnel_session_batch_tx.send(
                             DatabaseTunnelSessionAction::Update {
@@ -365,16 +366,16 @@ async fn client_guard(
             .await;
             Err(())
         }
-        Some(ClientType::Proxy) => {
-            log(
-                Level::Debug,
-                format!("Bad request from {}", tunnel_client_addr.to_string()).as_str(),
-                "core::tunnel::control::tunnel_client_control",
-            )
-            .await;
-            flags.local_cancellation_token.cancel();
-            Err(())
-        }
+        // Some(ClientType::Proxy) => {
+        //     log(
+        //         Level::Debug,
+        //         format!("Bad request from {}", tunnel_client_addr.to_string()).as_str(),
+        //         "core::tunnel::control::tunnel_client_control",
+        //     )
+        //     .await;
+        //     flags.local_cancellation_token.cancel();
+        //     Err(())
+        // }
         None => Ok(()),
     }
 }
