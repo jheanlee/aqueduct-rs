@@ -1,0 +1,34 @@
+name: Build aqueduct-rs
+on:
+    push:
+        branches: [ "master" ]
+    pull_request:
+        branches: [ "master" ]
+
+jobs:
+    build:
+        runs-on: debian-12
+        strategy:
+            matrix:
+                BUILD_TARGET: [ release ]
+        outputs:
+            release_built: ${{ steps.set-output.outputs.release_built }}
+        steps:
+            -   uses: actions/checkout@v4
+
+            -   name: Install dependencies
+                run: |
+                    sudo apt-get update
+                    sudo apt-get install -y build-essential pkg-config libssl-dev
+
+            -   name: Setup Rust toolchain
+                uses: actions-rust-lang/setup-rust-toolchain@v1
+                with:
+                    cache: true
+
+            -   name: Build binaries
+                run: cargo build --profile ${{ matrix.BUILD_TARGET }}
+
+            -   name: Set Output
+                id: set-output
+                run: echo "release_built=true" >> $GITHUB_OUTPUT
