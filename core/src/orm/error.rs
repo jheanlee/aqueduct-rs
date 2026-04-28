@@ -19,6 +19,8 @@ use axum::response::{IntoResponse, Response};
 #[derive(Debug)]
 pub enum Error {
     NotFound,
+    Unauthorized,
+    Conflict,
     DatabaseError(sea_orm::DbErr),
     CommonError(crate::common::error::Error),
 }
@@ -27,6 +29,8 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NotFound => write!(f, "Resource not found"),
+            Self::Unauthorized => write!(f, "Unauthorized"),
+            Self::Conflict => write!(f, "Conflict"),
             Self::DatabaseError(error) => write!(f, "DbErr: {error}"),
             Self::CommonError(error) => write!(f, "{error}"),
         }
@@ -39,6 +43,8 @@ impl IntoResponse for Error {
     fn into_response(self) -> Response {
         match self {
             Error::NotFound => StatusCode::NOT_FOUND.into_response(),
+            Error::Unauthorized => StatusCode::UNAUTHORIZED.into_response(),
+            Error::Conflict => StatusCode::CONFLICT.into_response(),
             Error::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             Error::CommonError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }

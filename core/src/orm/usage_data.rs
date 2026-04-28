@@ -25,10 +25,10 @@ pub struct TunnelUserData {
     pub username: String,
     pub inbound: i64,
     pub outbound: i64,
+    pub external_connection_count: i64,
 }
 
 pub async fn get_tunnel_user_data(shared: Shared, id: &str) -> Result<TunnelUserData, Error> {
-    //  TODO change to adopt the new format
     let user = tunnel_users::Entity::find_by_id(id)
         .one(&shared.db_connection)
         .await?
@@ -40,9 +40,11 @@ pub async fn get_tunnel_user_data(shared: Shared, id: &str) -> Result<TunnelUser
 
     let mut inbound_usage = 0i64;
     let mut outbound_usage = 0i64;
+    let mut external_connection_count = 0i64;
     for model in sessions {
         inbound_usage += model.inbound;
         outbound_usage += model.outbound;
+        external_connection_count += model.external_connection_count;
     }
 
     Ok(TunnelUserData {
@@ -50,5 +52,6 @@ pub async fn get_tunnel_user_data(shared: Shared, id: &str) -> Result<TunnelUser
         username: user.username,
         inbound: inbound_usage,
         outbound: outbound_usage,
+        external_connection_count,
     })
 }

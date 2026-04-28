@@ -26,7 +26,7 @@ use crate::core::tunnel::message_handler::{
 use crate::core::tunnel::model::{ClientType, Flags, TunnelClient, TunnelStatus};
 use crate::core::tunnel::proxy::{tunnel_client_proxy, tunnel_client_proxy_control};
 use crate::orm::tunnel_session::DatabaseTunnelSessionAction;
-use crate::orm::tunnel_user::authenticate_tunnel_user;
+use crate::orm::tunnel_user::{authenticate_tunnel_token, authenticate_tunnel_user};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -141,9 +141,7 @@ pub async fn tunnel_client_control(
 
                         let user_id = match service_message.auth {
                             ServiceAuth::Token { token } => {
-                                //  TODO token verification
-                                //  TODO return user_id
-                                todo!()
+                                authenticate_tunnel_token(shared.clone(), token.as_str()).await
                             },
 
                             ServiceAuth::Password { username, password } => {
@@ -153,11 +151,10 @@ pub async fn tunnel_client_control(
                                     password.as_str()
                                 )
                                 .await
-                                .unwrap_or(None)
                             },
                         };
 
-                        let Some(user_id) = user_id else {
+                        let Ok(user_id) = user_id else {
                             log(
                                 Level::Notice,
                                 format!("Access from {} denied", tunnel_client_addr.to_string()).as_str(),

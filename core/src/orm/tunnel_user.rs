@@ -15,31 +15,51 @@
  */
 use crate::common::model::Shared;
 use crate::orm::error::Error;
-use chrono::{DateTime, NaiveDateTime};
-use entity::entities::tunnel_users::{ActiveModel, Column, Entity};
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
+use chrono::{DateTime, NaiveDateTime, Utc};
+use entity::entities::tunnel_users::{ActiveModel, Column, Entity, Model};
 use nanoid::nanoid;
 use rand::{RngExt, rng};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, Set};
+use sha2::{Digest, Sha256};
 
 pub async fn authenticate_tunnel_user(
     shared: Shared,
     username: &str,
     password: &str,
-) -> Result<Option<String>, Error> {
+) -> Result<String, Error> {
     let user = Entity::find()
         .filter(Column::Username.eq(username))
         .one(&shared.db_connection)
         .await?
-        .ok_or(Error::NotFound)?;
+        .ok_or(Error::Unauthorized)?;
     if shared
         .auth_manager
-        .verify_password(password.to_string(), user.hashed_password)
+        .verify_password(password.to_string(), user.hashed_password.clone())
         .await?
     {
-        Ok(Some(user.id))
+        let mut user_active_model = user.into_active_model();
+        user_active_model.last_login = Set(Utc::now().naive_utc());
+        Ok(user_active_model.update(&shared.db_connection).await?.id)
     } else {
-        Ok(None)
+        Err(Error::Unauthorized)
     }
+}
+
+pub async fn authenticate_tunnel_token(shared: Shared, token: &str) -> Result<String, Error> {
+    let mut hasher = Sha256::new();
+    hasher.update(token);
+    let hashed_token = BASE64_STANDARD.encode(hasher.finalize().to_vec());
+
+    let mut user = Entity::find()
+        .filter(Column::Token.eq(hashed_token))
+        .one(&shared.db_connection)
+        .await?
+        .ok_or(Error::Unauthorized)?
+        .into_active_model();
+    user.last_login = Set(Utc::now().naive_utc());
+    Ok(user.update(&shared.db_connection).await?.id)
 }
 
 pub async fn new_tunnel_user(
@@ -47,16 +67,26 @@ pub async fn new_tunnel_user(
     username: String,
     password: String,
 ) -> Result<(), Error> {
-    //  TODO check user
+    if get_user_by_username(shared.clone(), username.as_str())
+        .await
+        .is_ok()
+    {
+        Err(Error::Conflict)?
+    }
+
     let hashed_password = shared.auth_manager.hash_password(password).await?;
     let mut token_bytes = [0u8; 32];
     rng().fill(&mut token_bytes);
     let token = format!("aq_{}", bs58::encode(&token_bytes).into_string());
 
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_str());
+    let hashed_token = BASE64_STANDARD.encode(hasher.finalize().to_vec());
+
     let user = ActiveModel {
         id: Set(nanoid!()),
         username: Set(username),
-        token: Set(token),
+        token: Set(hashed_token),
         hashed_password: Set(hashed_password),
         label: Set(String::new()),
         last_login: Set(NaiveDateTime::from(DateTime::UNIX_EPOCH.naive_utc())),
@@ -84,7 +114,7 @@ pub async fn modify_tunnel_user_password(
     Ok(())
 }
 
-pub async fn rotate_token(shared: Shared, id: &str) -> Result<(), Error> {
+pub async fn rotate_token(shared: Shared, id: &str) -> Result<String, Error> {
     //  TODO api
     let mut user = Entity::find_by_id(id)
         .one(&shared.db_connection)
@@ -96,10 +126,14 @@ pub async fn rotate_token(shared: Shared, id: &str) -> Result<(), Error> {
     rng().fill(&mut token_bytes);
     let token = format!("aq_{}", bs58::encode(&token_bytes).into_string());
 
-    user.token = Set(token);
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_str());
+    let hashed_token = BASE64_STANDARD.encode(hasher.finalize().to_vec());
+
+    user.token = Set(hashed_token);
 
     user.update(&shared.db_connection).await?;
-    Ok(())
+    Ok(token)
 }
 
 pub async fn delete_tunnel_user(shared: Shared, id: &str) -> Result<(), Error> {
@@ -110,4 +144,12 @@ pub async fn delete_tunnel_user(shared: Shared, id: &str) -> Result<(), Error> {
         .into_active_model();
     user.delete(&shared.db_connection).await?;
     Ok(())
+}
+
+async fn get_user_by_username(shared: Shared, username: &str) -> Result<Model, Error> {
+    Ok(Entity::find()
+        .filter(Column::Username.eq(username))
+        .one(&shared.db_connection)
+        .await?
+        .ok_or(Error::NotFound)?)
 }
