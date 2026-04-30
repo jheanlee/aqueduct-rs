@@ -143,7 +143,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     //  tunnel
     let mut tunnel_threads = JoinSet::new();
     let database_tunnel_sessions_batch_thread = tokio::spawn(database_tunnel_session_batch_thread(
-        shared.clone(),
+        shared.db_connection.clone(),
         database_tunnel_session_batch_rx,
         cancellation_token.clone(),
     ));

@@ -141,12 +141,17 @@ pub async fn tunnel_client_control(
 
                         let user_id = match service_message.auth {
                             ServiceAuth::Token { token } => {
-                                authenticate_tunnel_token(shared.clone(), token.as_str()).await
+                                authenticate_tunnel_token(
+                                    shared.db_connection.clone(),
+                                    token.as_str()
+                                )
+                                .await
                             },
 
                             ServiceAuth::Password { username, password } => {
                                 authenticate_tunnel_user(
-                                    shared.clone(),
+                                    shared.db_connection.clone(),
+                                    shared.auth_manager.clone(),
                                     username.as_str(),
                                     password.as_str()
                                 )

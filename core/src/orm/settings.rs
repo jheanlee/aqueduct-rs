@@ -15,8 +15,8 @@
  */
 use crate::orm::error::Error;
 use entity::entities::settings::{Entity, Model};
-use sea_orm::{DbConn, EntityTrait};
+use sea_orm::{DatabaseConnection, EntityTrait};
 
-pub async fn read_settings(db_connection: DbConn) -> Result<Vec<Model>, Error> {
+pub async fn read_settings(db_connection: DatabaseConnection) -> Result<Vec<Model>, Error> {
     Ok(Entity::find().all(&db_connection).await?)
 }

@@ -15,14 +15,13 @@
  */
 use crate::api::control::ApiState;
 use crate::api::error::Error;
-use crate::orm;
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::{Json, http};
 use serde::Deserialize;
-use serde_json::to_string;
+use serde_json::{json, to_string};
 
 #[derive(Deserialize)]
 pub struct NewTunnelUserBody {
@@ -33,7 +32,13 @@ pub async fn new_tunnel_user(
     State(api_state): State<ApiState>,
     Json(body): Json<NewTunnelUserBody>,
 ) -> Result<impl IntoResponse, Error> {
-    orm::tunnel_user::new_tunnel_user(api_state.shared, body.username, body.password).await?;
+    crate::orm::tunnel_user::new_tunnel_user(
+        api_state.shared.db_connection,
+        api_state.shared.auth_manager,
+        body.username,
+        body.password,
+    )
+    .await?;
     Ok(StatusCode::OK)
 }
 
@@ -50,8 +55,9 @@ pub async fn modify_tunnel_user_password(
     Path(path): Path<ModifyTunnelUserPasswordPath>,
     Json(body): Json<ModifyTunnelUserPasswordBody>,
 ) -> Result<impl IntoResponse, Error> {
-    orm::tunnel_user::modify_tunnel_user_password(
-        api_state.shared,
+    crate::orm::tunnel_user::modify_tunnel_user_password(
+        api_state.shared.db_connection,
+        api_state.shared.auth_manager,
         path.id.as_str(),
         body.new_password,
     )
@@ -67,7 +73,8 @@ pub async fn delete_tunnel_user(
     State(api_state): State<ApiState>,
     Path(path): Path<DeleteTunnelUserPath>,
 ) -> Result<impl IntoResponse, Error> {
-    orm::tunnel_user::delete_tunnel_user(api_state.shared, path.id.as_str()).await?;
+    crate::orm::tunnel_user::delete_tunnel_user(api_state.shared.db_connection, path.id.as_str())
+        .await?;
     Ok(StatusCode::OK)
 }
 
@@ -79,9 +86,36 @@ pub async fn get_tunnel_usage_by_user(
     State(api_state): State<ApiState>,
     Path(path): Path<GetTunnelUsageByUserPath>,
 ) -> Result<Response<Body>, Error> {
-    let data = orm::usage_data::get_tunnel_user_data(api_state.shared, path.id.as_str()).await?;
+    let data = crate::orm::usage_data::get_tunnel_user_data(
+        api_state.shared.db_connection,
+        path.id.as_str(),
+    )
+    .await?;
     let response_builder =
         Response::builder().header(http::header::CONTENT_TYPE, "application/json");
     let response_body = Body::from(to_string(&data)?);
+    Ok(response_builder.body(response_body)?)
+}
+
+#[derive(Deserialize)]
+pub struct RotateTokenPath {
+    pub id: String,
+}
+pub async fn rotate_token(
+    State(api_state): State<ApiState>,
+    Path(path): Path<RotateTokenPath>,
+) -> Result<Response<Body>, Error> {
+    let new_token =
+        crate::orm::tunnel_user::rotate_token(api_state.shared.db_connection, path.id.as_str())
+            .await?;
+    let response_builder =
+        Response::builder().header(http::header::CONTENT_TYPE, "application/json");
+    let response_body = Body::from(
+        json!({
+            "token": new_token
+        })
+        .to_string(),
+    );
+
     Ok(response_builder.body(response_body)?)
 }

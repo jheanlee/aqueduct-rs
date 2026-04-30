@@ -17,13 +17,14 @@ use crate::orm::error::Error;
 use entity::entities::ip_whitelist::{ActiveModel, Entity};
 use ip_network::IpNetwork;
 use sea_orm::{
-    ActiveModelTrait, DbConn, DbErr, EntityTrait, IntoActiveModel, RuntimeErr, Set, sqlx,
+    ActiveModelTrait, DatabaseConnection, DbErr, EntityTrait, IntoActiveModel, RuntimeErr, Set,
+    sqlx,
 };
 use serde::Deserialize;
 use std::net::IpAddr;
 use std::str::FromStr;
 
-pub async fn get_whitelist(db_connection: DbConn) -> Result<Vec<IpNetwork>, Error> {
+pub async fn get_whitelist(db_connection: DatabaseConnection) -> Result<Vec<IpNetwork>, Error> {
     let res: Vec<IpNetwork> = Entity::find()
         .all(&db_connection)
         .await?
@@ -51,7 +52,7 @@ pub struct WhitelistEntry {
     pub notes: String,
 }
 pub async fn add_whitelist(
-    db_connection: DbConn,
+    db_connection: DatabaseConnection,
     values: Vec<WhitelistEntry>,
 ) -> Result<(), Error> {
     let models: Vec<ActiveModel> = values
@@ -84,7 +85,7 @@ pub async fn add_whitelist(
     }
 }
 
-pub async fn delete_whitelist(db_connection: DbConn, id: i32) -> Result<(), Error> {
+pub async fn delete_whitelist(db_connection: DatabaseConnection, id: i32) -> Result<(), Error> {
     Entity::find_by_id(id)
         .one(&db_connection)
         .await?

@@ -18,6 +18,7 @@ use crate::api::tunnel::access::{
 };
 use crate::api::tunnel::users::{
     delete_tunnel_user, get_tunnel_usage_by_user, modify_tunnel_user_password, new_tunnel_user,
+    rotate_token,
 };
 use crate::common::log::{Level, log};
 use crate::common::model::Shared;
@@ -78,6 +79,7 @@ pub async fn api_control(
             "/api/tunnel/users/{id}/usage",
             get(get_tunnel_usage_by_user),
         )
+        .route("/api/tunnel/users/{id}/token/rotate", post(rotate_token))
         .merge(with_access_update)
         .with_state(state);
 
