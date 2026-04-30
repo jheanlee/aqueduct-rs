@@ -21,6 +21,7 @@ pub enum Error {
     NotFound,
     Unauthorized,
     Conflict,
+    BadRequest,
     DatabaseError(sea_orm::DbErr),
     CommonError(crate::common::error::Error),
 }
@@ -31,6 +32,7 @@ impl std::fmt::Display for Error {
             Self::NotFound => write!(f, "Resource not found"),
             Self::Unauthorized => write!(f, "Unauthorized"),
             Self::Conflict => write!(f, "Conflict"),
+            Self::BadRequest => write!(f, "Bad request"),
             Self::DatabaseError(error) => write!(f, "DbErr: {error}"),
             Self::CommonError(error) => write!(f, "{error}"),
         }
@@ -45,6 +47,7 @@ impl IntoResponse for Error {
             Error::NotFound => StatusCode::NOT_FOUND.into_response(),
             Error::Unauthorized => StatusCode::UNAUTHORIZED.into_response(),
             Error::Conflict => StatusCode::CONFLICT.into_response(),
+            Error::BadRequest => StatusCode::BAD_REQUEST.into_response(),
             Error::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             Error::CommonError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }

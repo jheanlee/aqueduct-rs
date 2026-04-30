@@ -17,23 +17,25 @@
 #[derive(Debug)]
 pub enum ConfigError {
     AddrParseError,
-    ParseIntError(std::num::ParseIntError),
-    ParseBoolError(std::str::ParseBoolError),
+    ParseError((String, String)),
     LogInitError(crate::common::log::Error),
     RequiredFieldEmpty((String, String)),
+    OrmError(crate::orm::error::Error),
 }
 
 impl std::fmt::Display for ConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ConfigError::AddrParseError => write!(f, "invalid address format"),
-            ConfigError::ParseIntError(error) => write!(f, "{error}"),
-            ConfigError::ParseBoolError(error) => write!(f, "{error}"),
+            ConfigError::AddrParseError => write!(f, "Invalid address format"),
+            ConfigError::ParseError((config_type, value)) => {
+                write!(f, "Error while parsing {config_type} value \"{value}\"")
+            }
             ConfigError::RequiredFieldEmpty((arg_name, env_name)) => write!(
                 f,
-                "required field must be set: `--{arg_name}` or environment variable `{env_name}`"
+                "Required field must be set: `--{arg_name}` or environment variable `{env_name}`"
             ),
             ConfigError::LogInitError(error) => write!(f, "{error}"),
+            ConfigError::OrmError(error) => write!(f, "Database error: {error}"),
         }
     }
 }
@@ -46,20 +48,14 @@ impl From<std::net::AddrParseError> for ConfigError {
     }
 }
 
-impl From<std::num::ParseIntError> for ConfigError {
-    fn from(value: std::num::ParseIntError) -> Self {
-        ConfigError::ParseIntError(value)
-    }
-}
-
-impl From<std::str::ParseBoolError> for ConfigError {
-    fn from(value: std::str::ParseBoolError) -> Self {
-        ConfigError::ParseBoolError(value)
-    }
-}
-
 impl From<crate::common::log::Error> for ConfigError {
     fn from(value: crate::common::log::Error) -> Self {
         ConfigError::LogInitError(value)
+    }
+}
+
+impl From<crate::orm::error::Error> for ConfigError {
+    fn from(value: crate::orm::error::Error) -> Self {
+        ConfigError::OrmError(value)
     }
 }

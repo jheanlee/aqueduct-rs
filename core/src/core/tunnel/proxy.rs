@@ -258,7 +258,7 @@ pub async fn tunnel_client_proxy(
                         .database_tunnel_session_batch_tx
                         .send(DatabaseTunnelSessionAction::Update {
                             user_id: proxy_client.tunnel_client_user_id.clone(),
-                            tunnel_client: tunnel_client.addr.ip().to_string(),
+                            tunnel_client: tunnel_client.addr.ip(),
                             inbound: inbound,
                             outbound: outbound,
                             external_connection_count_update: false,
@@ -381,7 +381,7 @@ pub async fn tunnel_client_proxy(
         .database_tunnel_session_batch_tx
         .send(DatabaseTunnelSessionAction::Update {
             user_id: proxy_client.tunnel_client_user_id.clone(),
-            tunnel_client: tunnel_client.addr.ip().to_string(),
+            tunnel_client: tunnel_client.addr.ip(),
             inbound: inbound,
             outbound: outbound,
             external_connection_count_update: false,

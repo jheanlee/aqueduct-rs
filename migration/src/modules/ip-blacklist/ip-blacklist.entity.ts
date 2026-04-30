@@ -14,16 +14,20 @@
  * limitations under the License.
  */
 
-import { Entity, PrimaryKey, Property } from "@mikro-orm/core";
+import { Entity, Index, PrimaryKey, Property } from "@mikro-orm/core";
 
 @Entity()
+@Index({
+  expression: `alter table "ip_blacklist" add constraint "ip_blacklist_no_ip_overlaps" exclude USING gist (network inet_ops WITH &&);`,
+  name: "ip_blacklist_no_ip_overlaps",
+})
 export class IpBlacklist {
   @PrimaryKey()
   id!: number;
 
   @Property({ type: "inet" })
-  subnet!: string;
+  network!: string;
 
   @Property({ type: "text" })
-  comment!: string;
+  notes!: string;
 }

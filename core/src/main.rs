@@ -13,21 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 use crate::api::control::api_control;
 use crate::common::auth_manager::AuthManager;
 use crate::common::log::{Level, LogConfig, log};
 use crate::common::model::Shared;
+use crate::config::access_handler::update_access_ip_tables;
 use crate::config::config_handler::read_config;
+use crate::config::db_config_handler::read_db_config;
 use crate::core::tunnel::control::tunnel_client_control;
 use crate::core::tunnel::model::{Flags, TunnelStatus};
 use crate::core::tunnel::pending_cleaner::pending_client_cleaner;
 use crate::orm::tunnel_session::database_tunnel_session_batch_thread;
 use dashmap::DashMap;
+use ip_network_table::IpNetworkTable;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use sea_orm::Database;
 use socket2::{SockRef, TcpKeepalive};
+use std::process::exit;
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 use tokio::net::TcpListener;
@@ -59,7 +62,10 @@ static LOG_CONFIG: LazyLock<RwLock<LogConfig>> = LazyLock::new(|| {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     let _ = dotenv::dotenv();
-    let config = read_config().map_err(|error| error.to_string())?;
+    let config = read_config().unwrap_or_else(|error| {
+        println!("{}", error);
+        exit(1);
+    });
     let cancellation_token = CancellationToken::new();
 
     //  log
@@ -74,6 +80,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         config.db_username, config.db_password, config.db_host, config.db_port, config.db_name
     ))
     .await?;
+    let db_config = read_db_config(db_connection.clone())
+        .await
+        .unwrap_or_else(|error| {
+            println!("{}", error);
+            exit(1);
+        });
+
+    //  whitelist and blacklist
+    let whitelist = Arc::new(RwLock::new(IpNetworkTable::new()));
+    let blacklist = Arc::new(RwLock::new(IpNetworkTable::new()));
+    update_access_ip_tables(db_connection.clone(), whitelist.clone(), blacklist.clone()).await?;
 
     //  tls credentials
     let cert =
@@ -116,9 +133,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
     //  api
     let api_thread = tokio::spawn(api_control(
-        shared.clone(),
-        cancellation_token.clone(),
         config.api_host,
+        shared.clone(),
+        whitelist.clone(),
+        blacklist.clone(),
+        cancellation_token.clone(),
     ));
 
     //  tunnel
@@ -157,7 +176,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                         .with_retries(3);
                     socket_ref.set_tcp_keepalive(&socket_keep_alive)?;
 
-                    //  TODO check whitelist
+                    //  whitelist & blacklist
+                    if db_config.whitelist && whitelist.read().await.matches(client_addr.ip()).count() == 0 {
+                        drop(stream);
+                        log(
+                            Level::Info,
+                            format!("Access from {} denied (whitelist)", client_addr.to_string()).as_str(),
+                            "core::main",
+                        )
+                        .await;
+                        continue;
+                    }
+
+                    if db_config.blacklist && blacklist.read().await.matches(client_addr.ip()).count() > 0 {
+                        drop(stream);
+                        log(
+                            Level::Info,
+                            format!("Access from {} denied (blacklist)", client_addr.to_string()).as_str(),
+                            "core::main",
+                        )
+                        .await;
+                        continue;
+                    }
 
                     //  tls
                     let tls_acceptor_clone = tls_acceptor.clone();
@@ -171,7 +211,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                             Ok(Ok(tls_stream)) => {
                                 log(
                                     Level::Info,
-                                    format!("Connection accepted from {}", client_addr.to_string()).as_str(),
+                                    format!("Connection from {} accepted", client_addr.to_string()).as_str(),
                                     "core::main",
                                 )
                                 .await;

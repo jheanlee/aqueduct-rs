@@ -20,6 +20,7 @@ use crate::config::error::ConfigError;
 use clap::Parser;
 use std::collections::VecDeque;
 use std::net::SocketAddr;
+use std::num::ParseIntError;
 use std::str::FromStr;
 
 pub struct Config {
@@ -51,6 +52,7 @@ pub fn read_config() -> Result<Config, ConfigError> {
         tunnel_allowed_ports: (51000..=51999).collect(),
         tunnel_global_connection_limit: 10000,
         tunnel_client_connection_limit: 2048,
+
         api_host: SocketAddr::from_str("0.0.0.0:30331")?,
         tls_cert_path: "".to_string(),
         tls_private_key_path: "".to_string(),
@@ -77,17 +79,36 @@ pub fn read_config() -> Result<Config, ConfigError> {
         config.tunnel_host = tunnel_host.parse()?;
     }
     if let Ok(tunnel_allowed_ports) = std::env::var("AQUEDUCT_TUNNEL_ALLOWED_PORTS") {
-        config.tunnel_allowed_ports = parse_port_list(tunnel_allowed_ports.as_str())?.into()
+        config.tunnel_allowed_ports = parse_port_list(tunnel_allowed_ports.as_str())
+            .map_err(|_| {
+                ConfigError::ParseError((
+                    "config".to_string(),
+                    "AQUEDUCT_TUNNEL_ALLOWED_PORTS".to_string(),
+                ))
+            })?
+            .into()
     }
     if let Ok(tunnel_global_connection_limit) =
         std::env::var("AQUEDUCT_TUNNEL_GLOBAL_CONNECTION_LIMIT")
     {
-        config.tunnel_global_connection_limit = tunnel_global_connection_limit.parse()?;
+        config.tunnel_global_connection_limit =
+            tunnel_global_connection_limit.parse().map_err(|_| {
+                ConfigError::ParseError((
+                    "config".to_string(),
+                    "AQUEDUCT_TUNNEL_GLOBAL_CONNECTION_LIMIT".to_string(),
+                ))
+            })?;
     }
     if let Ok(tunnel_client_connection_limit) =
         std::env::var("AQUEDUCT_TUNNEL_CLIENT_CONNECTION_LIMIT")
     {
-        config.tunnel_client_connection_limit = tunnel_client_connection_limit.parse()?;
+        config.tunnel_client_connection_limit =
+            tunnel_client_connection_limit.parse().map_err(|_| {
+                ConfigError::ParseError((
+                    "config".to_string(),
+                    "AQUEDUCT_TUNNEL_CLIENT_CONNECTION_LIMIT".to_string(),
+                ))
+            })?;
     }
     if let Ok(tls_cert) = std::env::var("AQUEDUCT_TLS_CERT") {
         config.tls_cert_path = tls_cert;
@@ -102,7 +123,9 @@ pub fn read_config() -> Result<Config, ConfigError> {
         config.db_host = db_host;
     }
     if let Ok(db_port) = std::env::var("AQUEDUCT_DB_PORT") {
-        config.db_port = db_port.parse()?;
+        config.db_port = db_port.parse().map_err(|_| {
+            ConfigError::ParseError(("config".to_string(), "AQUEDUCT_DB_PORT".to_string()))
+        })?;
     }
     if let Ok(db_username) = std::env::var("AQUEDUCT_DB_USERNAME") {
         config.db_username = db_username;
@@ -111,13 +134,19 @@ pub fn read_config() -> Result<Config, ConfigError> {
         config.db_password = db_password;
     }
     if let Ok(daemon_mode) = std::env::var("AQUEDUCT_DAEMON") {
-        config_daemon_mode = daemon_mode.parse()?;
+        config_daemon_mode = daemon_mode.parse().map_err(|_| {
+            ConfigError::ParseError(("config".to_string(), "AQUEDUCT_DAEMON".to_string()))
+        })?;
     }
     if let Ok(stdout_filter) = std::env::var("AQUEDUCT_STDOUT_FILTER") {
-        config.log_config.stdout_filter = stdout_filter.parse()?;
+        config.log_config.stdout_filter = stdout_filter.parse().map_err(|_| {
+            ConfigError::ParseError(("config".to_string(), "AQUEDUCT_STDOUT_FILTER".to_string()))
+        })?;
     }
     if let Ok(log_filter) = std::env::var("AQUEDUCT_LOG_FILTER") {
-        config.log_config.system_filter = log_filter.parse()?;
+        config.log_config.system_filter = log_filter.parse().map_err(|_| {
+            ConfigError::ParseError(("config".to_string(), "AQUEDUCT_LOG_FILTER".to_string()))
+        })?;
     }
 
     //  args
@@ -126,7 +155,14 @@ pub fn read_config() -> Result<Config, ConfigError> {
         config.tunnel_host = tunnel_host;
     }
     if let Some(tunnel_allowed_ports) = args.tunnel_allowed_ports {
-        config.tunnel_allowed_ports = parse_port_list(tunnel_allowed_ports.as_str())?.into();
+        config.tunnel_allowed_ports = parse_port_list(tunnel_allowed_ports.as_str())
+            .map_err(|_| {
+                ConfigError::ParseError((
+                    "config".to_string(),
+                    "--tunnel-allowed-ports".to_string(),
+                ))
+            })?
+            .into();
     }
     if let Some(tunnel_global_connection_limit) = args.tunnel_global_connection_limit {
         config.tunnel_global_connection_limit = tunnel_global_connection_limit;
@@ -189,7 +225,7 @@ pub fn read_config() -> Result<Config, ConfigError> {
     }
 }
 
-fn parse_port_list(arg_string: &str) -> Result<Vec<u16>, ConfigError> {
+fn parse_port_list(arg_string: &str) -> Result<Vec<u16>, ParseIntError> {
     let mut allowed_ports = Vec::new();
 
     for entry in arg_string.split(',') {

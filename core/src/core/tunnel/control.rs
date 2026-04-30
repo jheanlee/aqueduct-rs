@@ -215,7 +215,7 @@ pub async fn tunnel_client_control(
                         if let Err(error) = shared.database_tunnel_session_batch_tx.send(
                             DatabaseTunnelSessionAction::Update {
                                 user_id: proxy_client.tunnel_client_user_id.clone(),
-                                tunnel_client: tunnel_client_addr.ip().to_string(),
+                                tunnel_client: tunnel_client_addr.ip(),
                                 inbound: 0,
                                 outbound: 0,
                                 external_connection_count_update: true
