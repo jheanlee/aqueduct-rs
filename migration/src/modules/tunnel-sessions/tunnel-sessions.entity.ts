@@ -36,7 +36,7 @@ export class TunnelSessions {
   bucketStart!: Date;
 
   //  ip address
-  @Property()
+  @Property({ type: "inet" })
   tunnelClient!: string;
 
   @Property({ type: "bigint" })

@@ -24,9 +24,9 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
     #[sea_orm(column_type = "custom(\"inet\")")]
-    pub subnet: IpNetwork,
+    pub network: IpNetwork,
     #[sea_orm(column_type = "Text")]
-    pub comment: String,
+    pub notes: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 use crate::common::log::{Level, log};
-use crate::common::model::Shared;
 use chrono::{NaiveDateTime, Timelike, Utc};
 use entity::entities::tunnel_sessions::{ActiveModel, Column, Entity};
 use sea_orm::prelude::Expr;
 use sea_orm::sea_query::OnConflict;
-use sea_orm::{DbConn, EntityTrait, ExprTrait, Iden, Set};
+use sea_orm::{DatabaseConnection, EntityTrait, ExprTrait, Iden, Set};
 use std::collections::HashMap;
 use std::mem::take;
+use std::net::IpAddr;
 use std::time::Duration;
 use tokio::select;
 use tokio::sync::mpsc;
@@ -32,7 +32,7 @@ use tokio_util::sync::CancellationToken;
 pub enum DatabaseTunnelSessionAction {
     Update {
         user_id: String,
-        tunnel_client: String,
+        tunnel_client: IpAddr,
         inbound: i64,
         outbound: i64,
         external_connection_count_update: bool,
@@ -40,7 +40,7 @@ pub enum DatabaseTunnelSessionAction {
 }
 
 pub async fn database_tunnel_session_batch_thread(
-    shared: Shared,
+    db_connection: DatabaseConnection,
     mut database_tunnel_session_batch_rx: mpsc::Receiver<DatabaseTunnelSessionAction>,
     cancellation_token: CancellationToken,
 ) {
@@ -64,7 +64,7 @@ pub async fn database_tunnel_session_batch_thread(
                 {
                     let update_map = take(&mut update_map);
                     database_update_threads.spawn(
-                        flush_to_database(shared.db_connection.clone(), update_map)
+                        flush_to_database(db_connection.clone(), update_map)
                     );
                 }
 
@@ -74,7 +74,7 @@ pub async fn database_tunnel_session_batch_thread(
                 match request {
                     Some(DatabaseTunnelSessionAction::Update { user_id, tunnel_client, inbound, outbound, external_connection_count_update }) => {
                         update_map
-                            .entry(user_id.clone() + tunnel_client.as_str())
+                            .entry(user_id.clone() + tunnel_client.to_string().as_str())
                             .and_modify(|v| {
                                 v.inbound = Set(v.inbound.clone().unwrap() + inbound);
                                 v.outbound = Set(v.outbound.clone().unwrap() + outbound);
@@ -84,7 +84,7 @@ pub async fn database_tunnel_session_batch_thread(
                                 id: Default::default(),
                                 user_id: Set(user_id),
                                 bucket_start: Set(bucket_time(BUCKET_LIMIT_MIN)),
-                                tunnel_client: Set(tunnel_client),
+                                tunnel_client: Set(sea_orm::prelude::IpNetwork::new(tunnel_client, 32).unwrap()),
                                 inbound: Set(inbound),
                                 outbound: Set(outbound),
                                 external_connection_count: Set(external_connection_count_update as i64),
@@ -98,10 +98,13 @@ pub async fn database_tunnel_session_batch_thread(
     }
 
     //  clean up
-    flush_to_database(shared.db_connection.clone(), update_map).await;
+    flush_to_database(db_connection.clone(), update_map).await;
 }
 
-async fn flush_to_database(db_connection: DbConn, update_map: HashMap<String, ActiveModel>) {
+async fn flush_to_database(
+    db_connection: DatabaseConnection,
+    update_map: HashMap<String, ActiveModel>,
+) {
     if !update_map.is_empty() {
         let table_name = Entity.to_string();
         let models: Vec<ActiveModel> = update_map.into_iter().map(|(_key, value)| value).collect();

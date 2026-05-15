@@ -13,10 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use crate::common::model::Shared;
 use crate::orm::error::Error;
 use entity::entities::{tunnel_sessions, tunnel_users};
-use sea_orm::{ColumnTrait, EntityTrait};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -28,14 +27,17 @@ pub struct TunnelUserData {
     pub external_connection_count: i64,
 }
 
-pub async fn get_tunnel_user_data(shared: Shared, id: &str) -> Result<TunnelUserData, Error> {
+pub async fn get_tunnel_user_data(
+    db_connection: DatabaseConnection,
+    id: &str,
+) -> Result<TunnelUserData, Error> {
     let user = tunnel_users::Entity::find_by_id(id)
-        .one(&shared.db_connection)
+        .one(&db_connection)
         .await?
         .ok_or(Error::NotFound)?;
     let sessions = tunnel_sessions::Entity::find()
         .has_related(tunnel_users::Entity, tunnel_users::Column::Id.eq(id))
-        .all(&shared.db_connection)
+        .all(&db_connection)
         .await?;
 
     let mut inbound_usage = 0i64;

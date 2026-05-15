@@ -90,15 +90,15 @@ pub async fn tunnel_client_control(
                         Some(ClientType::Service) => {
                             handle_bad_request_handler(flags.clone(), tunnel_client_addr, control_message_sender_client).await;
                         }
-                        Some(ClientType::Proxy) => {
-                            log(
-                                Level::Debug,
-                                format!("Bad request from {}", tunnel_client_addr.to_string()).as_str(),
-                                "core::tunnel::control::tunnel_client_control",
-                            )
-                            .await;
-                            flags.local_cancellation_token.cancel();
-                        }
+                        // Some(ClientType::Proxy) => {
+                        //     log(
+                        //         Level::Debug,
+                        //         format!("Bad request from {}", tunnel_client_addr.to_string()).as_str(),
+                        //         "core::tunnel::control::tunnel_client_control",
+                        //     )
+                        //     .await;
+                        //     flags.local_cancellation_token.cancel();
+                        // }
                         None => {
                             handle_bad_request_stream(flags.clone(), &mut tunnel_client_tx, tunnel_client_addr).await;
                         }
@@ -141,12 +141,17 @@ pub async fn tunnel_client_control(
 
                         let user_id = match service_message.auth {
                             ServiceAuth::Token { token } => {
-                                authenticate_tunnel_token(shared.clone(), token.as_str()).await
+                                authenticate_tunnel_token(
+                                    shared.db_connection.clone(),
+                                    token.as_str()
+                                )
+                                .await
                             },
 
                             ServiceAuth::Password { username, password } => {
                                 authenticate_tunnel_user(
-                                    shared.clone(),
+                                    shared.db_connection.clone(),
+                                    shared.auth_manager.clone(),
                                     username.as_str(),
                                     password.as_str()
                                 )
@@ -208,13 +213,14 @@ pub async fn tunnel_client_control(
                             unreachable!("tunnel_client_rx only taken when client_type is set");
                         };
 
-                        authentication_timeout = None;
-                        client_type = Some(ClientType::Proxy);
+                        // //  breaks out of the loop, no need to assign
+                        // authentication_timeout = None;
+                        // client_type = Some(ClientType::Proxy);
 
                         if let Err(error) = shared.database_tunnel_session_batch_tx.send(
                             DatabaseTunnelSessionAction::Update {
                                 user_id: proxy_client.tunnel_client_user_id.clone(),
-                                tunnel_client: tunnel_client_addr.ip().to_string(),
+                                tunnel_client: tunnel_client_addr.ip(),
                                 inbound: 0,
                                 outbound: 0,
                                 external_connection_count_update: true
@@ -365,16 +371,16 @@ async fn client_guard(
             .await;
             Err(())
         }
-        Some(ClientType::Proxy) => {
-            log(
-                Level::Debug,
-                format!("Bad request from {}", tunnel_client_addr.to_string()).as_str(),
-                "core::tunnel::control::tunnel_client_control",
-            )
-            .await;
-            flags.local_cancellation_token.cancel();
-            Err(())
-        }
+        // Some(ClientType::Proxy) => {
+        //     log(
+        //         Level::Debug,
+        //         format!("Bad request from {}", tunnel_client_addr.to_string()).as_str(),
+        //         "core::tunnel::control::tunnel_client_control",
+        //     )
+        //     .await;
+        //     flags.local_cancellation_token.cancel();
+        //     Err(())
+        // }
         None => Ok(()),
     }
 }

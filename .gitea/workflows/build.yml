@@ -28,8 +28,6 @@ jobs:
 
             -   name: Setup Rust toolchain
                 uses: actions-rust-lang/setup-rust-toolchain@v1
-                with:
-                    cache: true
 
             -   name: Build binaries
                 run: cargo build --profile ${{ matrix.BUILD_TARGET }}
