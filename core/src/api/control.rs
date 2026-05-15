@@ -20,7 +20,6 @@ use crate::api::tunnel::users::{
     delete_tunnel_user, get_tunnel_usage_by_user, modify_tunnel_user_password, new_tunnel_user,
     rotate_token,
 };
-use crate::common::log::{Level, log};
 use crate::common::model::Shared;
 use crate::config::access_handler::update_access_ip_tables;
 use axum::extract::{Request, State};
@@ -35,6 +34,7 @@ use tokio::net::TcpListener;
 use tokio::select;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
+use tracing::{error, warn};
 
 #[derive(Clone)]
 pub struct ApiState {
@@ -90,24 +90,14 @@ pub async fn api_control(
                 _ = cancellation_token.cancelled() => { return; }
                 serve_result = axum::serve(api_listener, api) => {
                     if let Err(error) = serve_result {
-                        log(
-                            Level::Error,
-                            format!("Failed to start api services: {:?}", error).as_str(),
-                            "api::control",
-                        )
-                        .await;
+                        error!("Failed to start api services: {:?}", error);
                         return;
                     }
                 }
             }
         }
         Err(error) => {
-            log(
-                Level::Error,
-                format!("Failed to start api services: {:?}", error).as_str(),
-                "api::control",
-            )
-            .await;
+            error!("Failed to start api services: {:?}", error);
             return;
         }
     };
@@ -126,12 +116,7 @@ async fn access_middleware(
     )
     .await
     {
-        log(
-            Level::Warning,
-            format!("Unable to update the access ip table: {:?}", error).as_str(),
-            "api::control::access_middleware",
-        )
-        .await;
+        warn!("Unable to update the access tables: {:?}", error);
     }
     response
 }

@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use crate::common::log::{Level, log};
 use chrono::{NaiveDateTime, Timelike, Utc};
 use entity::entities::tunnel_sessions::{ActiveModel, Column, Entity};
 use sea_orm::prelude::Expr;
@@ -28,6 +27,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 use tokio::time::{Instant, sleep_until};
 use tokio_util::sync::CancellationToken;
+use tracing::{instrument, warn};
 
 pub enum DatabaseTunnelSessionAction {
     Update {
@@ -39,6 +39,7 @@ pub enum DatabaseTunnelSessionAction {
     },
 }
 
+#[instrument(skip(database_tunnel_session_batch_rx, cancellation_token))]
 pub async fn database_tunnel_session_batch_thread(
     db_connection: DatabaseConnection,
     mut database_tunnel_session_batch_rx: mpsc::Receiver<DatabaseTunnelSessionAction>,
@@ -135,12 +136,7 @@ async fn flush_to_database(
             .await;
 
         if let Err(error) = res {
-            log(
-                Level::Warning,
-                format!("Unable to update database: {:?}", error).as_str(),
-                "orm::tunnel_session::database_tunnel_session_batch_thread",
-            )
-            .await;
+            warn!("Unable to update database: {:?}", error);
         }
     }
 }

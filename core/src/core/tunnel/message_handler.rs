@@ -13,17 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use crate::common::log::{Level, log};
 use crate::core::message::message::{Message, MessageType};
 use crate::core::socket::io::send_message;
 use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::model::Flags;
-use std::net::SocketAddr;
 use tokio::io::WriteHalf;
 use tokio::net::TcpStream;
 use tokio::select;
 use tokio::sync::mpsc;
 use tokio_rustls::server::TlsStream;
+use tracing::warn;
 
 #[derive(Clone)]
 pub struct ControlMessageSenderClient {
@@ -53,7 +52,6 @@ pub async fn tunnel_control_message_sender(
     flags: Flags,
     mut control_rx: mpsc::Receiver<Message>,
     mut tunnel_client_tx: WriteHalf<TlsStream<TcpStream>>,
-    tunnel_client_addr: SocketAddr,
 ) {
     loop {
         select! {
@@ -72,17 +70,7 @@ pub async fn tunnel_control_message_sender(
                     _client_cancealled = flags.local_cancellation_token.cancelled() => { break; },
                     write_result = send_message(&mut tunnel_client_tx, &message) => {
                         if let Err(error) = write_result {
-                            log(
-                                Level::Warning,
-                                format!(
-                                    "Unable to send message to client {}: {:?}",
-                                    tunnel_client_addr.to_string(),
-                                    error
-                                )
-                                .as_str(),
-                                "core::tunnel::message_handler::tunnel_control_message_sender"
-                            )
-                            .await;
+                            warn!("Unable to send message to client: {:?}", error);
                             flags.local_cancellation_token.cancel();
                             break;
                         }

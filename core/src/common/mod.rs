@@ -16,5 +16,4 @@
 
 pub mod auth_manager;
 pub mod error;
-pub mod log;
 pub mod model;
