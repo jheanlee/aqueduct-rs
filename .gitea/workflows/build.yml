@@ -14,17 +14,17 @@ jobs:
         outputs:
             release_built: ${{ steps.set-output.outputs.release_built }}
         steps:
-            -   name: Install Node
+            -   name: Install workflow dependencies
                 run: |
-                    sudo apt-get update
-                    sudo apt-get install -y nodejs
+                    apt-get update
+                    apt-get install -y nodejs curl
 
             -   uses: actions/checkout@v4
 
             -   name: Install dependencies
                 run: |
-                    sudo apt-get update
-                    sudo apt-get install -y build-essential pkg-config libssl-dev
+                    apt-get update
+                    apt-get install -y build-essential pkg-config libssl-dev
 
             -   name: Setup Rust toolchain
                 uses: actions-rust-lang/setup-rust-toolchain@v1
