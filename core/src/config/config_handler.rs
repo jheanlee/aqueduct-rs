@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-use crate::common::log::{Level, LogConfig};
 use crate::config::args::Args;
 use crate::config::error::ConfigError;
 use clap::Parser;
@@ -29,7 +28,7 @@ pub struct Config {
     pub tunnel_global_connection_limit: u32,
     pub tunnel_client_connection_limit: u32,
 
-    pub api_host: SocketAddr, //  TODO
+    pub api_host: SocketAddr,
 
     pub tls_cert_path: String,
     pub tls_private_key_path: String,
@@ -39,7 +38,6 @@ pub struct Config {
     pub db_port: u16,
     pub db_username: String,
     pub db_password: String,
-    pub log_config: LogConfig,
 }
 
 ///   Reads config from
@@ -61,18 +59,7 @@ pub fn read_config() -> Result<Config, ConfigError> {
         db_port: 5432,
         db_username: "postgres".to_string(),
         db_password: "".to_string(),
-        log_config: LogConfig {
-            stdout_filter: Level::Info.into(),
-            system_filter: Level::Notice.into(),
-            stdout_enabled: true,
-            #[cfg(target_os = "linux")]
-            syslog_enabled: false,
-            #[cfg(target_os = "macos")]
-            oslog_enabled: false,
-        },
     };
-
-    let mut config_daemon_mode = false;
 
     //  environment variable
     if let Ok(tunnel_host) = std::env::var("AQUEDUCT_HOST") {
@@ -110,6 +97,9 @@ pub fn read_config() -> Result<Config, ConfigError> {
                 ))
             })?;
     }
+    if let Ok(api_host) = std::env::var("AQUEDUCT_API_HOST") {
+        config.api_host = api_host.parse()?;
+    }
     if let Ok(tls_cert) = std::env::var("AQUEDUCT_TLS_CERT") {
         config.tls_cert_path = tls_cert;
     }
@@ -133,21 +123,6 @@ pub fn read_config() -> Result<Config, ConfigError> {
     if let Ok(db_password) = std::env::var("AQUEDUCT_DB_PASSWORD") {
         config.db_password = db_password;
     }
-    if let Ok(daemon_mode) = std::env::var("AQUEDUCT_DAEMON") {
-        config_daemon_mode = daemon_mode.parse().map_err(|_| {
-            ConfigError::ParseError(("config".to_string(), "AQUEDUCT_DAEMON".to_string()))
-        })?;
-    }
-    if let Ok(stdout_filter) = std::env::var("AQUEDUCT_STDOUT_FILTER") {
-        config.log_config.stdout_filter = stdout_filter.parse().map_err(|_| {
-            ConfigError::ParseError(("config".to_string(), "AQUEDUCT_STDOUT_FILTER".to_string()))
-        })?;
-    }
-    if let Ok(log_filter) = std::env::var("AQUEDUCT_LOG_FILTER") {
-        config.log_config.system_filter = log_filter.parse().map_err(|_| {
-            ConfigError::ParseError(("config".to_string(), "AQUEDUCT_LOG_FILTER".to_string()))
-        })?;
-    }
 
     //  args
     let args = Args::parse();
@@ -170,6 +145,9 @@ pub fn read_config() -> Result<Config, ConfigError> {
     if let Some(tunnel_client_connection_limit) = args.tunnel_client_connection_limit {
         config.tunnel_client_connection_limit = tunnel_client_connection_limit;
     }
+    if let Some(api_host) = args.api_host {
+        config.api_host = api_host;
+    }
     if let Some(tls_cert) = args.tls_cert {
         config.tls_cert_path = tls_cert;
     }
@@ -191,23 +169,6 @@ pub fn read_config() -> Result<Config, ConfigError> {
     if let Some(db_password) = args.db_password {
         config.db_password = db_password;
     }
-    if let Some(daemon_mode) = args.daemon {
-        config_daemon_mode = daemon_mode;
-    }
-    if let Some(stdout_filter) = args.stdout_filter {
-        config.log_config.stdout_filter = stdout_filter;
-    }
-    if let Some(log_filter) = args.log_filter {
-        config.log_config.system_filter = log_filter;
-    }
-
-    //  log config
-    crate::common::log::init(
-        config.log_config.stdout_filter,
-        config.log_config.system_filter,
-        !config_daemon_mode,
-        config_daemon_mode,
-    )?;
 
     //  check required field
     if config.tls_cert_path.is_empty() {

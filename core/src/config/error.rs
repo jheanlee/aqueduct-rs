@@ -18,7 +18,6 @@
 pub enum ConfigError {
     AddrParseError,
     ParseError((String, String)),
-    LogInitError(crate::common::log::Error),
     RequiredFieldEmpty((String, String)),
     OrmError(crate::orm::error::Error),
 }
@@ -34,7 +33,6 @@ impl std::fmt::Display for ConfigError {
                 f,
                 "Required field must be set: `--{arg_name}` or environment variable `{env_name}`"
             ),
-            ConfigError::LogInitError(error) => write!(f, "{error}"),
             ConfigError::OrmError(error) => write!(f, "Database error: {error}"),
         }
     }
@@ -45,12 +43,6 @@ impl std::error::Error for ConfigError {}
 impl From<std::net::AddrParseError> for ConfigError {
     fn from(_value: std::net::AddrParseError) -> Self {
         ConfigError::AddrParseError
-    }
-}
-
-impl From<crate::common::log::Error> for ConfigError {
-    fn from(value: crate::common::log::Error) -> Self {
-        ConfigError::LogInitError(value)
     }
 }
 

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-use crate::common::log::{Level, log};
 use crate::common::model::Shared;
 use crate::core::message::message::{ClientServiceMessage, MessageType};
 use crate::core::tunnel::error::TunnelError;
@@ -30,7 +29,6 @@ use rand::{RngExt, rng};
 use serde_json::to_string;
 use sha2::Sha256;
 use socket2::{SockRef, TcpKeepalive};
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -39,11 +37,11 @@ use tokio::select;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio::time::{Instant, sleep_until};
+use tracing::{debug, info, instrument, warn};
 
 pub async fn tunnel_client_proxy_control(
     flags: Flags,
     tunnel_client_user_id: String,
-    tunnel_client_addr: SocketAddr,
     tunnel_status: Arc<TunnelStatus>,
     control_message_sender_client: ControlMessageSenderClient,
     tunnel_global_connection_semaphore: Arc<Semaphore>,
@@ -80,12 +78,7 @@ pub async fn tunnel_client_proxy_control(
     }
 
     let Some(tcp_listener) = tcp_listener else {
-        log(
-            Level::Warning,
-            "No ports available",
-            "core::tunnel::proxy::tunnel_client_proxy_control",
-        )
-        .await;
+        warn!("No available ports");
         let _ = control_message_sender_client
             .send_message(MessageType::Error, "no ports available".to_string())
             .await;
@@ -110,17 +103,7 @@ pub async fn tunnel_client_proxy_control(
         flags.local_cancellation_token.cancel();
     }
 
-    log(
-        Level::Info,
-        format!(
-            "Tunnel port {} assigned to client {}, started listening",
-            port,
-            tunnel_client_addr.to_string()
-        )
-        .as_str(),
-        "core::tunnel::proxy::tunnel_client_proxy_control",
-    )
-    .await;
+    info!("Tunnel port assigned, started listening on {}", port);
 
     //  accept external connections
     loop {
@@ -131,11 +114,7 @@ pub async fn tunnel_client_proxy_control(
                     Ok((external_client_stream, external_client_addr)) => {
                         if pending_permit_threads.len() >= tunnel_status.client_connection_limit as usize * 2 {
                             drop(external_client_stream);
-                            log(
-                                Level::Warning,
-                                "External client pending exceeds double the client limit; new connections will not be accepted until available",
-                                "core::tunnel::proxy::tunnel_client_proxy_control"
-                            ).await;
+                            warn!("External client pending exceeds the limit; new connections will be dropped until pending queue is available");
                             continue;
                         }
 
@@ -199,12 +178,7 @@ pub async fn tunnel_client_proxy_control(
                         });
                     }
                     Err(error) => {
-                        log(
-                            Level::Warning,
-                            format!("Unable to accept external connection for client {}: {:?}",
-                                tunnel_client_addr.to_string(), error).as_str(),
-                            "core::tunnel::proxy::tunnel_client_proxy_control"
-                        ).await;
+                        warn!("Unable to accept external connection: {:?}", error);
                         flags.local_cancellation_token.cancel();
                         break;
                     }
@@ -223,23 +197,14 @@ pub async fn tunnel_client_proxy_control(
     Ok(())
 }
 
+#[instrument(skip_all, fields(proxy_client = %proxy_client.external_client_addr))]
 pub async fn tunnel_client_proxy(
     flags: Flags,
     shared: Shared,
     mut tunnel_client: TunnelClient,
     mut proxy_client: ProxyClient,
 ) -> Result<(), TunnelError> {
-    log(
-        Level::Debug,
-        format!(
-            "TCP proxying started {} <=> {}",
-            tunnel_client.addr.to_string(),
-            proxy_client.external_client_addr.to_string()
-        )
-        .as_str(),
-        "core::tunnel::proxy::tunnel_client_proxy",
-    )
-    .await;
+    debug!("TCP proxying started");
 
     let mut tunnel_buffer = vec![0u8; 32768];
     let mut external_buffer = vec![0u8; 32768];
@@ -280,35 +245,13 @@ pub async fn tunnel_client_proxy(
                                 outbound += bytes_read as i64;
                             }
                             Err(error) => {
-                                log(
-                                    Level::Debug,
-                                    format!(
-                                        "Proxy write failed {} => {}: {:?}",
-                                        tunnel_client.addr.to_string(),
-                                        proxy_client.external_client_addr.to_string(),
-                                        error
-                                    )
-                                    .as_str(),
-                                    "core::tunnel::proxy::tunnel_client_proxy"
-                                )
-                                .await;
+                                debug!("Proxy write failed: {:?}", error);
                                 break;
                             }
                         }
                     }
                     Err(error) => {
-                        log(
-                            Level::Debug,
-                            format!(
-                                "Proxy read failed {} => {}: {:?}",
-                                tunnel_client.addr.to_string(),
-                                proxy_client.external_client_addr.to_string(),
-                                error
-                            )
-                            .as_str(),
-                            "core::tunnel::proxy::tunnel_client_proxy"
-                        )
-                        .await;
+                        debug!("Proxy read failed: {:?}", error);
                         break;
                     }
                 }
@@ -324,35 +267,13 @@ pub async fn tunnel_client_proxy(
                                 inbound += bytes_read as i64;
                             }
                             Err(error) => {
-                                log(
-                                    Level::Debug,
-                                    format!(
-                                        "Proxy write failed {} <= {}: {:?}",
-                                        tunnel_client.addr.to_string(),
-                                        proxy_client.external_client_addr.to_string(),
-                                        error
-                                    )
-                                    .as_str(),
-                                    "core::tunnel::proxy::tunnel_client_proxy"
-                                )
-                                .await;
+                                debug!("Proxy write failed: {:?}", error);
                                 break;
                             }
                         }
                     }
                     Err(error) => {
-                        log(
-                            Level::Debug,
-                            format!(
-                                "Proxy read failed {} <= {}: {:?}",
-                                tunnel_client.addr.to_string(),
-                                proxy_client.external_client_addr.to_string(),
-                                error
-                            )
-                            .as_str(),
-                            "core::tunnel::proxy::tunnel_client_proxy"
-                        )
-                        .await;
+                        debug!("Proxy read failed: {:?}", error);
                         break;
                     }
                 }
@@ -365,17 +286,7 @@ pub async fn tunnel_client_proxy(
 
     flags.local_cancellation_token.cancel();
     let _shutdown_status = proxy_client.external_client_stream_tx.shutdown().await;
-    log(
-        Level::Debug,
-        format!(
-            "TCP proxying ended {} <=> {}",
-            tunnel_client.addr.to_string(),
-            proxy_client.external_client_addr.to_string()
-        )
-        .as_str(),
-        "core::tunnel::proxy::tunnel_client_proxy",
-    )
-    .await;
+    debug!("TCP proxying ended");
 
     let _ = shared
         .database_tunnel_session_batch_tx

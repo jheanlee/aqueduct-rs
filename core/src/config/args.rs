@@ -26,6 +26,8 @@ pub struct Args {
     #[arg(long)]
     pub tunnel_client_connection_limit: Option<u32>,
     #[arg(long)]
+    pub api_host: Option<SocketAddr>,
+    #[arg(long)]
     pub tls_cert: Option<String>,
     #[arg(long)]
     pub tls_private_key: Option<String>,
@@ -39,10 +41,4 @@ pub struct Args {
     pub db_username: Option<String>,
     #[arg(long)]
     pub db_password: Option<String>,
-    #[arg(long)]
-    pub daemon: Option<bool>,
-    #[arg(long)]
-    pub stdout_filter: Option<u8>,
-    #[arg(long)]
-    pub log_filter: Option<u8>,
 }
