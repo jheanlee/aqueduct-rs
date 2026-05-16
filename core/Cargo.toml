@@ -7,10 +7,10 @@ license = "Apache-2.0"
 [dependencies]
 aqueduct-rs-entity = { path = "../entity" }
 argon2 = "0.5.3"
-axum = "0.8.8"
+axum = "0.8.9"
 base64 = "0.22.1"
 bs58 = "0.5.1"
-chrono = "0.4.43"
+chrono = "0.4.44"
 clap = { version = "4.5.61", features = ["derive"] }
 dashmap = "6.1.0"
 dotenv = "0.15.0"
@@ -20,13 +20,13 @@ ip_network = "0.4.1"
 ip_network_table = "0.2.0"
 nanoid = "0.5.0"
 rand = "0.10.1"
-rustls = "0.23.37"
-sea-orm = { version = "2.0.0-rc.37", features = ["with-ipnetwork"] }
+rustls = "0.23.40"
+sea-orm = { version = "2.0.0-rc.38", features = ["with-ipnetwork"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 sha2 = "0.11.0"
 socket2 = "0.6.3"
-tokio = { version = "1.51.0", features = ["macros", "net", "rt", "rt-multi-thread", "sync", "io-util", "time"] }
+tokio = { version = "1.52.3", features = ["macros", "net", "rt", "rt-multi-thread", "sync", "io-util", "time"] }
 tokio-rustls = "0.26.4"
 tokio-stream = "0.1.18"
 tokio-util = { version = "0.7.18", features = ["codec"] }
