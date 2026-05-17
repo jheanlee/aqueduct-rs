@@ -16,6 +16,7 @@
 use crate::api::control::api_control;
 use crate::common::auth_manager::AuthManager;
 use crate::common::model::Shared;
+use crate::common::signal_handler::signal_handler;
 use crate::config::access_handler::update_access_ip_tables;
 use crate::config::config_handler::read_config;
 use crate::config::db_config_handler::read_db_config;
@@ -51,6 +52,10 @@ mod orm;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .expect("Failed to install crypto provider");
+
     let _ = dotenv::dotenv();
     let config = read_config().unwrap_or_else(|error| {
         println!("{}", error);
@@ -59,13 +64,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     let cancellation_token = CancellationToken::new();
 
     //  log
-
     let (non_blocking_stdout, _guard) = tracing_appender::non_blocking(std::io::stdout());
     let subscriber = tracing_subscriber::fmt()
         .with_writer(non_blocking_stdout)
         .with_env_filter(EnvFilter::from_default_env())
         .finish();
     subscriber.init();
+
+    //  signal handler
+    let signal_handler_thread = tokio::spawn(signal_handler(cancellation_token.clone()));
 
     //  database
     let mut db_connect_options = ConnectOptions::new(format!(
@@ -187,6 +194,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
     loop {
         select! {
+            biased;
             _ = cancellation_token.cancelled() => { break; }
             _ = tunnel_threads.join_next(), if !tunnel_threads.is_empty() => {}
             accept_result = tcp_listener.accept() => {
@@ -218,7 +226,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
                     //  tls
                     let tls_acceptor_clone = tls_acceptor.clone();
-                    let cancellation_token_clone = cancellation_token.clone();
+                    let local_cancellation_token = cancellation_token.child_token();
                     let shared_clone = shared.clone();
                     let tunnel_status_clone = tunnel_status.clone();
                     let global_connection_semaphore_clone = global_connection_semaphore.clone();
@@ -231,8 +239,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
                                     tunnel_client_control(
                                         Flags {
-                                            global_cancellation_token: cancellation_token_clone,
-                                            local_cancellation_token: CancellationToken::new(),
+                                            local_cancellation_token,
                                         },
                                         shared_clone,
                                         tls_stream,
@@ -241,7 +248,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                                         global_connection_semaphore_clone
                                     ).await;
                                 }
-                                _ => {}
+                                Ok(Err(error)) => {
+                                    warn!("TLS handshake failed: {:?}", error);
+                                }
+                                Err(_) => {
+                                    warn!("TLS handshake timed out");
+                                }
                             }
                         }
                         .instrument(session_span)
@@ -253,6 +265,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
     cancellation_token.cancel();
     warn!("Exit signal received. Cleaning up");
+    let _ = signal_handler_thread.await;
     let _ = api_thread.await;
     let _ = database_tunnel_sessions_batch_thread.await;
     let _ = pending_cleaner_thread.await;

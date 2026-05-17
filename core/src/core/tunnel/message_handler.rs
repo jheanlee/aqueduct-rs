@@ -56,8 +56,7 @@ pub async fn tunnel_control_message_sender(
     loop {
         select! {
             biased;
-            _global_cancalled = flags.global_cancellation_token.cancelled() => { break; },
-            _client_cancealled = flags.local_cancellation_token.cancelled() => { break; },
+            _ = flags.local_cancellation_token.cancelled() => { break; },
             received_request = control_rx.recv() => {
                 let Some(message) = received_request else {
                     flags.local_cancellation_token.cancel();
@@ -66,8 +65,7 @@ pub async fn tunnel_control_message_sender(
 
                 select! {
                     biased;
-                    _global_cancalled = flags.global_cancellation_token.cancelled() => { break; },
-                    _client_cancealled = flags.local_cancellation_token.cancelled() => { break; },
+                    _ = flags.local_cancellation_token.cancelled() => { break; },
                     write_result = send_message(&mut tunnel_client_tx, &message) => {
                         if let Err(error) = write_result {
                             warn!("Unable to send message to client: {:?}", error);
