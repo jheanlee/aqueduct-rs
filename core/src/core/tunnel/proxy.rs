@@ -108,6 +108,10 @@ pub async fn tunnel_client_proxy_control(
     //  accept external connections
     loop {
         select! {
+            biased;
+            _ = flags.local_cancellation_token.cancelled() => {
+                break;
+            }
             _ = pending_permit_threads.join_next(), if !pending_permit_threads.is_empty() => {}
             result = tcp_listener.accept() => {
                 match result {
@@ -184,9 +188,6 @@ pub async fn tunnel_client_proxy_control(
                     }
                 }
             }
-            _client_cancelled = flags.local_cancellation_token.cancelled() => {
-                break;
-            },
         }
     }
 

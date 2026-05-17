@@ -73,11 +73,7 @@ pub async fn tunnel_client_control(
 
         select! {
             biased;
-            _global_cancalled = flags.global_cancellation_token.cancelled() => {
-                flags.local_cancellation_token.cancel();
-                break;
-            },
-            _client_cancealled = flags.local_cancellation_token.cancelled() => {
+            _ = flags.local_cancellation_token.cancelled() => {
                 break;
             },
             _auth_timedout = sleep_until(if authentication_timeout.is_some() { authentication_timeout.unwrap() } else { Instant::now() + Duration::from_hours(10000) }), if authentication_timeout.is_some() => {
@@ -159,7 +155,7 @@ pub async fn tunnel_client_control(
                         };
 
                         let Ok(user_id) = user_id else {
-                            info!("Access denied");
+                            warn!("Access denied");
 
                             let _ = control_message_sender_client.send_message(MessageType::Error, "access denied".to_string()).await;
 
@@ -195,7 +191,14 @@ pub async fn tunnel_client_control(
                             break;
                         };
                         let Some((_, proxy_client)) = tunnel_status.pending_external_clients.remove(&client_info.proxy_id) else {
-                            handle_bad_request_stream(flags.clone(), &mut tunnel_client_tx).await;
+                            warn!("Proxy access denied");
+
+                            let Some(tunnel_client_tx) = tunnel_client_tx.as_mut() else {
+                                unreachable!("tunnel_client_tx only taken when client_type is set");
+                            };
+                            let message = Message::new(MessageType::Error, "access denied".to_string());
+                            let _ = send_message(tunnel_client_tx, &message).await;
+                            flags.local_cancellation_token.cancel();
                             break;
                         };
 
@@ -287,8 +290,7 @@ pub async fn tunnel_client_heartbeat(
         //  wait for heartbeat
         let value = select! {
             biased;
-            _global_cancalled = flags.global_cancellation_token.cancelled() => None,
-            _client_cancealled = flags.local_cancellation_token.cancelled() => None,
+            _ = flags.local_cancellation_token.cancelled() => None,
             heartbeat_changed = heartbeat_rx.changed() => {
                 if heartbeat_changed.is_ok() {
                     Some(*heartbeat_rx.borrow())
@@ -305,9 +307,8 @@ pub async fn tunnel_client_heartbeat(
             Some(value) if value => {
                 select! {
                     biased;
-                    _global_cancalled = flags.global_cancellation_token.cancelled() => { break; },
-                    _client_cancealled = flags.local_cancellation_token.cancelled() => { break; },
-                    _sleep = tokio::time::sleep(TUNNEL_CLIENT_HEARTBEAT_TIMEOUT) => {},
+                    _ = flags.local_cancellation_token.cancelled() => { break; },
+                    _ = tokio::time::sleep(TUNNEL_CLIENT_HEARTBEAT_TIMEOUT) => {},
                 }
             }
             _ => {
@@ -357,7 +358,7 @@ async fn handle_bad_request_handler(
     flags: Flags,
     control_message_sender_client: ControlMessageSenderClient,
 ) {
-    debug!("Bad request");
+    warn!("Bad request");
 
     let _ = control_message_sender_client
         .send_message(MessageType::Error, "bad request".to_string())
@@ -374,11 +375,11 @@ async fn handle_bad_request_stream(
         unreachable!();
     };
 
-    debug!("Bad request");
+    warn!("Bad request");
 
     let message = Message::new(MessageType::Error, "bad request".to_string());
 
-    let _res = send_message(tunnel_client_tx, &message).await;
+    let _ = send_message(tunnel_client_tx, &message).await;
 
     flags.local_cancellation_token.cancel();
 }
