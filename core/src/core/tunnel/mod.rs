@@ -20,3 +20,4 @@ mod message_handler;
 pub mod model;
 pub mod pending_cleaner;
 mod proxy;
+pub mod proxy_io;
