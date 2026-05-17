@@ -20,6 +20,7 @@ use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::error::TunnelError::NoPortsAvailable;
 use crate::core::tunnel::message_handler::ControlMessageSenderClient;
 use crate::core::tunnel::model::{Flags, ProxyClient, TunnelClient, TunnelStatus};
+use crate::core::tunnel::proxy_io::ProxyIO;
 use crate::orm::tunnel_session::DatabaseTunnelSessionAction;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -29,14 +30,16 @@ use rand::{RngExt, rng};
 use serde_json::to_string;
 use sha2::Sha256;
 use socket2::{SockRef, TcpKeepalive};
+use std::io::ErrorKind;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::select;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio::time::{Instant, sleep_until};
+use tokio_util::future::FutureExt;
 use tracing::{debug, info, instrument, warn};
 
 pub async fn tunnel_client_proxy_control(
@@ -202,23 +205,75 @@ pub async fn tunnel_client_proxy_control(
 pub async fn tunnel_client_proxy(
     flags: Flags,
     shared: Shared,
-    mut tunnel_client: TunnelClient,
-    mut proxy_client: ProxyClient,
+    tunnel_client: TunnelClient,
+    proxy_client: ProxyClient,
 ) -> Result<(), TunnelError> {
     debug!("TCP proxying started");
 
-    let mut tunnel_buffer = vec![0u8; 32768];
-    let mut external_buffer = vec![0u8; 32768];
+    const BUFFER_SIZE: usize = 32768;
 
     //  usage counter
-    let mut inbound = 0i64;
-    let mut outbound = 0i64;
+    let inbound = Arc::new(AtomicI64::new(0));
+    let outbound = Arc::new(AtomicI64::new(0));
     const COUNTER_UPDATE_INTERVAL: u64 = 300;
     let mut next_deadline = Instant::now() + Duration::from_secs(COUNTER_UPDATE_INTERVAL);
 
+    let mut tunnel_client_io = ProxyIO::new(
+        tunnel_client.stream_rx,
+        tunnel_client.stream_tx,
+        inbound.clone(),
+    );
+    let mut external_client_io = ProxyIO::new(
+        proxy_client.external_client_stream_rx,
+        proxy_client.external_client_stream_tx,
+        outbound.clone(),
+    );
+
+    let io_copy = tokio::io::copy_bidirectional_with_sizes(
+        &mut tunnel_client_io,
+        &mut external_client_io,
+        BUFFER_SIZE,
+        BUFFER_SIZE,
+    )
+    .with_cancellation_token_owned(flags.local_cancellation_token.clone());
+
+    tokio::pin!(io_copy);
+
     loop {
         select! {
+            biased;
+            _client_cancealled = flags.local_cancellation_token.cancelled() => {
+                break;
+            }
+            res = &mut io_copy => {
+                match res {
+                    Some(Ok(_)) => {/* gracefully closed by either service or client */}
+                    Some(Err(error)) => {
+                        match error.kind() {
+                            ErrorKind::BrokenPipe => {
+                                //  often occurs under normal circumstances
+                                debug!("TCP proxying ended with BrokenPipe");
+                            }
+                            ErrorKind::ConnectionReset => {
+                                //  often occurs under normal circumstances
+                                debug!("TCP proxying ended with ConnectionReset");
+                            }
+                            ErrorKind::UnexpectedEof => {
+                                //  often occurs under normal circumstances
+                                debug!("TCP proxying ended with UnexpectedEof");
+                            }
+                            _ => {
+                                warn!("TCP proxying ended with error: {:?}", error);
+                            }
+                        }
+                    }
+                    None => { /* cancelled by cancellation token */ }
+                }
+                break;
+            }
             _ = sleep_until(next_deadline) => {
+                let inbound = inbound.swap(0, Ordering::Relaxed);
+                let outbound = outbound.swap(0, Ordering::Relaxed);
                 if inbound != 0 || outbound != 0 {
                     let _ = shared
                         .database_tunnel_session_batch_tx
@@ -230,63 +285,13 @@ pub async fn tunnel_client_proxy(
                             external_connection_count_update: false,
                         })
                         .await; //  only fails when global cancellation token is set
-                    inbound = 0;
-                    outbound = 0;
                 }
                 next_deadline = Instant::now() + Duration::from_secs(COUNTER_UPDATE_INTERVAL);
-            }
-            tunnel_client_read = tunnel_client.stream_rx.read(&mut tunnel_buffer) => {
-                //  client (service) -> external_client
-                match tunnel_client_read {
-                    Ok(0) => { break; }
-                    Ok(bytes_read) => {
-                        let write_result = proxy_client.external_client_stream_tx.write_all(&tunnel_buffer[..bytes_read]).await;
-                        match write_result {
-                            Ok(_) => {
-                                outbound += bytes_read as i64;
-                            }
-                            Err(error) => {
-                                debug!("Proxy write failed: {:?}", error);
-                                break;
-                            }
-                        }
-                    }
-                    Err(error) => {
-                        debug!("Proxy read failed: {:?}", error);
-                        break;
-                    }
-                }
-            }
-            external_client_read = proxy_client.external_client_stream_rx.read(&mut external_buffer) => {
-                //  external_client -> client (service)
-                match external_client_read {
-                    Ok(0) => { break; }
-                    Ok(bytes_read) => {
-                        let write_result = tunnel_client.stream_tx.write_all(&external_buffer[..bytes_read]).await;
-                        match write_result {
-                            Ok(_) => {
-                                inbound += bytes_read as i64;
-                            }
-                            Err(error) => {
-                                debug!("Proxy write failed: {:?}", error);
-                                break;
-                            }
-                        }
-                    }
-                    Err(error) => {
-                        debug!("Proxy read failed: {:?}", error);
-                        break;
-                    }
-                }
-            }
-            _client_cancealled = flags.local_cancellation_token.cancelled() => {
-                break;
             }
         }
     }
 
     flags.local_cancellation_token.cancel();
-    let _shutdown_status = proxy_client.external_client_stream_tx.shutdown().await;
     debug!("TCP proxying ended");
 
     let _ = shared
@@ -294,8 +299,8 @@ pub async fn tunnel_client_proxy(
         .send(DatabaseTunnelSessionAction::Update {
             user_id: proxy_client.tunnel_client_user_id.clone(),
             tunnel_client: tunnel_client.addr.ip(),
-            inbound: inbound,
-            outbound: outbound,
+            inbound: inbound.swap(0, Ordering::Relaxed),
+            outbound: outbound.swap(0, Ordering::Relaxed),
             external_connection_count_update: false,
         })
         .await; //  only fails when global cancellation token is set
