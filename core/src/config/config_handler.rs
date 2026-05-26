@@ -28,10 +28,15 @@ pub struct Config {
     pub tunnel_global_connection_limit: u32,
     pub tunnel_client_connection_limit: u32,
 
-    pub api_host: SocketAddr,
-
     pub tls_cert_path: String,
     pub tls_private_key_path: String,
+
+    pub api_host: SocketAddr,
+
+    pub jwt_access_private_key_path: String,
+    pub jwt_access_public_key_path: String,
+    pub jwt_refresh_private_key_path: String,
+    pub jwt_refresh_public_key_path: String,
 
     pub db_name: String,
     pub db_host: String,
@@ -51,9 +56,15 @@ pub fn read_config() -> Result<Config, ConfigError> {
         tunnel_global_connection_limit: 10000,
         tunnel_client_connection_limit: 2048,
 
-        api_host: SocketAddr::from_str("0.0.0.0:30331")?,
         tls_cert_path: "".to_string(),
         tls_private_key_path: "".to_string(),
+
+        api_host: SocketAddr::from_str("0.0.0.0:30331")?,
+        jwt_access_private_key_path: "".to_string(),
+        jwt_access_public_key_path: "".to_string(),
+        jwt_refresh_private_key_path: "".to_string(),
+        jwt_refresh_public_key_path: "".to_string(),
+
         db_name: "aqueduct-rs".to_string(),
         db_host: "127.0.0.1".to_string(),
         db_port: 5432,
@@ -97,14 +108,26 @@ pub fn read_config() -> Result<Config, ConfigError> {
                 ))
             })?;
     }
-    if let Ok(api_host) = std::env::var("AQUEDUCT_API_HOST") {
-        config.api_host = api_host.parse()?;
-    }
     if let Ok(tls_cert) = std::env::var("AQUEDUCT_TLS_CERT") {
         config.tls_cert_path = tls_cert;
     }
     if let Ok(tls_private_key) = std::env::var("AQUEDUCT_TLS_PRIVATE_KEY") {
         config.tls_private_key_path = tls_private_key;
+    }
+    if let Ok(api_host) = std::env::var("AQUEDUCT_API_HOST") {
+        config.api_host = api_host.parse()?;
+    }
+    if let Ok(jwt_access_private_key_path) = std::env::var("AQUEDUCT_JWT_ACCESS_PRIVATE_KEY") {
+        config.jwt_access_private_key_path = jwt_access_private_key_path;
+    }
+    if let Ok(jwt_access_public_key_path) = std::env::var("AQUEDUCT_JWT_ACCESS_PUBLIC_KEY") {
+        config.jwt_access_public_key_path = jwt_access_public_key_path;
+    }
+    if let Ok(jwt_refresh_private_key_path) = std::env::var("AQUEDUCT_JWT_REFRESH_PRIVATE_KEY") {
+        config.jwt_refresh_private_key_path = jwt_refresh_private_key_path;
+    }
+    if let Ok(jwt_refresh_public_key_path) = std::env::var("AQUEDUCT_JWT_REFRESH_PUBLIC_KEY") {
+        config.jwt_refresh_public_key_path = jwt_refresh_public_key_path;
     }
     if let Ok(db_name) = std::env::var("AQUEDUCT_DB_NAME") {
         config.db_name = db_name;
@@ -145,14 +168,26 @@ pub fn read_config() -> Result<Config, ConfigError> {
     if let Some(tunnel_client_connection_limit) = args.tunnel_client_connection_limit {
         config.tunnel_client_connection_limit = tunnel_client_connection_limit;
     }
-    if let Some(api_host) = args.api_host {
-        config.api_host = api_host;
-    }
     if let Some(tls_cert) = args.tls_cert {
         config.tls_cert_path = tls_cert;
     }
     if let Some(tls_private_key) = args.tls_private_key {
         config.tls_private_key_path = tls_private_key;
+    }
+    if let Some(api_host) = args.api_host {
+        config.api_host = api_host;
+    }
+    if let Some(jwt_access_private_key_path) = args.jwt_access_private_key {
+        config.jwt_access_private_key_path = jwt_access_private_key_path;
+    }
+    if let Some(jwt_access_public_key_path) = args.jwt_access_public_key {
+        config.jwt_access_public_key_path = jwt_access_public_key_path;
+    }
+    if let Some(jwt_refresh_private_key_path) = args.jwt_refresh_private_key {
+        config.jwt_refresh_private_key_path = jwt_refresh_private_key_path;
+    }
+    if let Some(jwt_refresh_public_key_path) = args.jwt_refresh_public_key {
+        config.jwt_refresh_public_key_path = jwt_refresh_public_key_path;
     }
     if let Some(db_name) = args.db_name {
         config.db_name = db_name;

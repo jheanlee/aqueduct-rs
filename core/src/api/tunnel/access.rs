@@ -22,16 +22,17 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use serde::Deserialize;
+use std::sync::Arc;
 
 #[derive(Deserialize)]
 pub struct AddBlacklistBody {
     pub data: Vec<BlacklistEntry>,
 }
 pub async fn add_blacklist(
-    State(api_state): State<ApiState>,
+    State(api_state): State<Arc<ApiState>>,
     Json(body): Json<AddBlacklistBody>,
 ) -> Result<impl IntoResponse, Error> {
-    crate::orm::blacklist::add_blacklist(api_state.shared.db_connection, body.data).await?;
+    crate::orm::blacklist::add_blacklist(api_state.shared.db_connection.clone(), body.data).await?;
     Ok(StatusCode::OK)
 }
 
@@ -40,10 +41,10 @@ pub struct RemoveBlacklistPath {
     pub id: i32,
 }
 pub async fn remove_blacklist(
-    State(api_state): State<ApiState>,
+    State(api_state): State<Arc<ApiState>>,
     Path(path): Path<RemoveBlacklistPath>,
 ) -> Result<impl IntoResponse, Error> {
-    delete_blacklist(api_state.shared.db_connection, path.id).await?;
+    delete_blacklist(api_state.shared.db_connection.clone(), path.id).await?;
     Ok(StatusCode::OK)
 }
 
@@ -52,10 +53,10 @@ pub struct AddWhitelistBody {
     pub data: Vec<WhitelistEntry>,
 }
 pub async fn add_whitelist(
-    State(api_state): State<ApiState>,
+    State(api_state): State<Arc<ApiState>>,
     Json(body): Json<AddWhitelistBody>,
 ) -> Result<impl IntoResponse, Error> {
-    crate::orm::whitelist::add_whitelist(api_state.shared.db_connection, body.data).await?;
+    crate::orm::whitelist::add_whitelist(api_state.shared.db_connection.clone(), body.data).await?;
     Ok(StatusCode::OK)
 }
 
@@ -64,9 +65,9 @@ pub struct RemoveWhitelistPath {
     pub id: i32,
 }
 pub async fn remove_whitelist(
-    State(api_state): State<ApiState>,
+    State(api_state): State<Arc<ApiState>>,
     Path(path): Path<RemoveWhitelistPath>,
 ) -> Result<impl IntoResponse, Error> {
-    delete_whitelist(api_state.shared.db_connection, path.id).await?;
+    delete_whitelist(api_state.shared.db_connection.clone(), path.id).await?;
     Ok(StatusCode::OK)
 }

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 use crate::api::control::api_control;
+use crate::api::jwt::key::init_jwt_keys;
 use crate::common::auth_manager::AuthManager;
 use crate::common::model::Shared;
 use crate::common::signal_handler::signal_handler;
@@ -52,16 +53,17 @@ mod orm;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-    rustls::crypto::aws_lc_rs::default_provider()
-        .install_default()
-        .expect("Failed to install crypto provider");
-
     let _ = dotenv::dotenv();
     let config = read_config().unwrap_or_else(|error| {
         println!("{}", error);
         exit(1);
     });
     let cancellation_token = CancellationToken::new();
+
+    // crypto
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .expect("Failed to install crypto provider");
 
     //  log
     let (non_blocking_stdout, _guard) = tracing_appender::non_blocking(std::io::stdout());
@@ -153,11 +155,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     ));
 
     //  api
+    let refresh_token_keys = match init_jwt_keys(
+        config.jwt_refresh_private_key_path,
+        config.jwt_refresh_public_key_path,
+    )
+    .await
+    {
+        Ok(keys) => keys,
+        Err(error) => {
+            error!(
+                "Unable to initialise refresh token signing keys: {:?}",
+                error
+            );
+            exit(1);
+        }
+    };
+    let access_token_keys = match init_jwt_keys(
+        config.jwt_access_private_key_path,
+        config.jwt_access_public_key_path,
+    )
+    .await
+    {
+        Ok(keys) => keys,
+        Err(error) => {
+            error!(
+                "Unable to initialise refresh token signing keys: {:?}",
+                error
+            );
+            exit(1);
+        }
+    };
     let api_thread = tokio::spawn(api_control(
         config.api_host,
         shared.clone(),
         whitelist.clone(),
         blacklist.clone(),
+        refresh_token_keys,
+        access_token_keys,
         cancellation_token.clone(),
     ));
 

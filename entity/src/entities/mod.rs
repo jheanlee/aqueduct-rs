@@ -24,4 +24,3 @@ pub mod mikro_orm_migrations;
 pub mod settings;
 pub mod tunnel_sessions;
 pub mod tunnel_users;
-pub mod web_users;
