@@ -16,12 +16,15 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use std::fmt::Formatter;
+use tracing::warn;
 
 #[derive(Debug)]
 pub enum Error {
     DatabaseError(crate::orm::error::Error),
     JsonError(serde_json::Error),
     HttpError(axum::http::Error),
+    JWTError(jsonwebtoken::errors::Error),
+    IoError(std::io::Error),
 }
 
 impl std::fmt::Display for Error {
@@ -30,6 +33,8 @@ impl std::fmt::Display for Error {
             Self::DatabaseError(e) => write!(f, "DatabaseError: {e}"),
             Self::JsonError(e) => write!(f, "JsonError: {e}"),
             Self::HttpError(e) => write!(f, "HttpError: {e}"),
+            Self::JWTError(e) => write!(f, "JWTError: {e}"),
+            Self::IoError(e) => write!(f, "IoError: {e}"),
         }
     }
 }
@@ -39,9 +44,21 @@ impl std::error::Error for Error {}
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
         match self {
+            Error::DatabaseError(crate::orm::error::Error::Unauthorized) => {}
+            Error::DatabaseError(crate::orm::error::Error::NotFound) => {}
+            Error::DatabaseError(crate::orm::error::Error::BadRequest) => {}
+            Error::DatabaseError(crate::orm::error::Error::Conflict) => {}
+            ref error => {
+                warn!("{:?}", error);
+            }
+        }
+
+        match self {
             Error::DatabaseError(error) => error.into_response(),
             Error::JsonError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             Error::HttpError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            Error::JWTError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            Error::IoError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }
 }
@@ -61,5 +78,17 @@ impl From<serde_json::Error> for Error {
 impl From<axum::http::Error> for Error {
     fn from(error: axum::http::Error) -> Self {
         Self::HttpError(error)
+    }
+}
+
+impl From<jsonwebtoken::errors::Error> for Error {
+    fn from(error: jsonwebtoken::errors::Error) -> Self {
+        Self::JWTError(error)
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(error: std::io::Error) -> Self {
+        Self::IoError(error)
     }
 }

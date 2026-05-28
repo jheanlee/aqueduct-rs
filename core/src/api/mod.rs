@@ -15,4 +15,5 @@
  */
 pub mod control;
 mod error;
-mod tunnel;
+pub mod jwt;
+pub mod tunnel;

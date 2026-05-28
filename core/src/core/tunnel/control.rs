@@ -144,13 +144,16 @@ pub async fn tunnel_client_control(
                             },
 
                             ServiceAuth::Password { username, password } => {
-                                authenticate_tunnel_user(
-                                    shared.db_connection.clone(),
+                                match authenticate_tunnel_user(shared.db_connection.clone(),
                                     shared.auth_manager.clone(),
                                     username.as_str(),
                                     password.as_str()
                                 )
-                                .await
+                                .await {
+                                    Ok((id, _)) => Ok(id),
+                                    Err(error) => Err(error),
+                                }
+
                             },
                         };
 

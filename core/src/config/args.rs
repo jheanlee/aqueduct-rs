@@ -26,11 +26,19 @@ pub struct Args {
     #[arg(long)]
     pub tunnel_client_connection_limit: Option<u32>,
     #[arg(long)]
-    pub api_host: Option<SocketAddr>,
-    #[arg(long)]
     pub tls_cert: Option<String>,
     #[arg(long)]
     pub tls_private_key: Option<String>,
+    #[arg(long)]
+    pub api_host: Option<SocketAddr>,
+    #[arg(long)]
+    pub jwt_access_private_key: Option<String>,
+    #[arg(long)]
+    pub jwt_access_public_key: Option<String>,
+    #[arg(long)]
+    pub jwt_refresh_private_key: Option<String>,
+    #[arg(long)]
+    pub jwt_refresh_public_key: Option<String>,
     #[arg(long)]
     pub db_name: Option<String>,
     #[arg(long)]

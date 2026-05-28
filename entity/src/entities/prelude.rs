@@ -22,4 +22,3 @@ pub use super::mikro_orm_migrations::Entity as MikroOrmMigrations;
 pub use super::settings::Entity as Settings;
 pub use super::tunnel_sessions::Entity as TunnelSessions;
 pub use super::tunnel_users::Entity as TunnelUsers;
-pub use super::web_users::Entity as WebUsers;

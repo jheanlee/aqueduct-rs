@@ -34,9 +34,12 @@ export class TunnelUsers {
   @Property({ type: "text" })
   hashedPassword!: string;
 
-  @Property({ type: "text" })
-  label!: string;
+  @Property()
+  label!: string[];
 
   @Property({ type: "timestamp" })
   lastLogin!: Date;
+
+  @Property()
+  administrator!: boolean;
 }
