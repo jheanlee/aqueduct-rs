@@ -1,7 +1,6 @@
 .env
 
 bin
-lib
 target
 node_modules
 migration/dist
