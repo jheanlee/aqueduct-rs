@@ -13,8 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pub mod control;
-mod error;
-pub mod jwt;
-pub mod status;
-pub mod tunnel;
+
+import { LoginForm } from "@/components/forms/login.tsx";
+
+export const Login = () => {
+  return (
+    <div className="w-full h-full">
+      <LoginForm />
+    </div>
+  );
+};

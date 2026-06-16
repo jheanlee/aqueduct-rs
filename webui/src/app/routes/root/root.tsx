@@ -14,6 +14,31 @@
  * limitations under the License.
  */
 
+import { Outlet } from "react-router";
+import { NavSidebar } from "@/components/layouts/nav-sidebar.tsx";
+import { NavHeader } from "@/components/layouts/nav-header.tsx";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar.tsx";
+
 export const Root = () => {
-  return <div className="w-screen h-screen"></div>;
+  return (
+    <div className="w-screen h-screen">
+      <SidebarProvider
+        style={
+          {
+            "--sidebar-width": "calc(var(--spacing) * 72)",
+            "--header-height": "calc(var(--spacing) * 12)",
+          } as React.CSSProperties
+        }
+        className="flex w-full h-full"
+      >
+        <NavSidebar />
+        <SidebarInset className="flex flex-col h-full min-w-0 overflow-hidden">
+          <NavHeader />
+          <main className="flex-1 overflow-y-auto p-6">
+            <Outlet />
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+    </div>
+  );
 };

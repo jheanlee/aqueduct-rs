@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 use crate::common::model::Shared;
+use crate::common::tunnel_info::TunnelInfo;
 use crate::config::tunnel::TUNNEL_CLIENT_HEARTBEAT_TIMEOUT;
 use crate::core::message::message::{
     Message, MessageType, ProxyMessage, ServiceAuth, ServiceMessage,
@@ -43,6 +44,7 @@ pub async fn tunnel_client_control(
     tunnel_client_stream: TlsStream<TcpStream>,
     tunnel_client_addr: SocketAddr,
     tunnel_status: Arc<TunnelStatus>,
+    tunnel_info: Arc<TunnelInfo>,
     tunnel_global_connection_semaphore: Arc<Semaphore>,
 ) {
     let mut client_type: Option<ClientType> = None;
@@ -179,6 +181,7 @@ pub async fn tunnel_client_control(
                                 flags.clone(),
                                 user_id,
                                 tunnel_status.clone(),
+                                tunnel_info.clone(),
                                 control_message_sender_client.clone(),
                                 tunnel_global_connection_semaphore.clone()
                             ))
@@ -238,6 +241,7 @@ pub async fn tunnel_client_control(
                                     stream_rx: tunnel_client_rx,
                                     addr: tunnel_client_addr
                                 },
+                                tunnel_info,
                                 proxy_client,
                             ))
                         );

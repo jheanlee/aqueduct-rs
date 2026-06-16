@@ -23,8 +23,33 @@ const createAppRouter = () =>
     {
       path: paths.root.path,
       Component: Root,
+      handle: { title: paths.root.title },
       hydrateFallbackElement: <div>Loading...</div>,
-      children: [],
+      children: [
+        {
+          path: paths.root.dashboard.path,
+          lazy: async () => {
+            const { Dashboard } = await import("@/app/routes/root/dashboard");
+            return { Component: Dashboard };
+          },
+        },
+        {
+          path: paths.root.login.path,
+          lazy: async () => {
+            const { Login } = await import("@/app/routes/root/login");
+            return { Component: Login };
+          },
+          handle: { title: paths.root.login.title },
+        },
+        {
+          path: paths.root.notFound.path,
+          lazy: async () => {
+            const { NotFound } = await import("@/app/routes/root/not-found");
+            return { Component: NotFound };
+          },
+          handle: { title: paths.root.notFound.title },
+        },
+      ],
     },
   ]);
 

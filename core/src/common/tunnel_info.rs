@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pub mod control;
-mod error;
-pub mod jwt;
-pub mod status;
-pub mod tunnel;
+use std::sync::atomic::AtomicU64;
+
+pub struct TunnelInfo {
+    pub active_service_count: AtomicU64,
+    pub active_external_connection_count: AtomicU64,
+}

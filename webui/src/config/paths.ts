@@ -18,6 +18,7 @@ export const paths = {
   root: {
     path: "/",
     getHref: () => "/",
+    title: "Dashboard",
 
     dashboard: {
       path: "",
@@ -26,18 +27,22 @@ export const paths = {
     login: {
       path: "login",
       getHref: () => "/login",
+      title: "Login",
     },
     users: {
       path: "users",
       getHref: () => "/users",
+      title: "Users",
     },
     settings: {
       path: "settings",
       getHref: () => "/settings",
+      title: "Global Settings",
     },
     notFound: {
-      path: "not-found",
+      path: "*",
       getHref: () => "/not-found",
+      title: "Page Not Found",
     },
   },
 };

@@ -20,12 +20,12 @@ use crate::api::jwt::generate::{
 };
 use crate::orm::error::Error::Unauthorized;
 use crate::orm::tunnel_user::authenticate_tunnel_user;
-use axum::Json;
 use axum::body::Body;
 use axum::extract::{Request, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
+use axum::{Json, http};
 use jsonwebtoken::{Algorithm, Validation, get_current_timestamp};
 use serde_json::json;
 use std::sync::Arc;
@@ -73,6 +73,8 @@ pub async fn login(
         ),
     );
 
+    let response_builder =
+        Response::builder().header(http::header::CONTENT_TYPE, "application/json");
     let response_body = Body::new(
         json!({
             "refresh_token": refresh_token,
@@ -84,7 +86,7 @@ pub async fn login(
     let api_span = info_span!("api", user_id = %id);
     api_span.in_scope(|| info!("Logged in"));
 
-    Ok(Response::new(response_body))
+    Ok(response_builder.body(response_body)?)
 }
 
 #[derive(serde::Deserialize)]
