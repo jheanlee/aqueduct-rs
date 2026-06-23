@@ -32,12 +32,12 @@ export const paths = {
     users: {
       path: "users",
       getHref: () => "/users",
-      title: "Users",
+      title: "Tunnel Users",
     },
     settings: {
       path: "settings",
       getHref: () => "/settings",
-      title: "Global Settings",
+      title: "Tunnel Settings",
     },
     notFound: {
       path: "*",

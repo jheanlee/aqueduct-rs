@@ -19,13 +19,13 @@ import { Buffer } from "buffer";
 import { paths } from "@/config/paths.ts";
 import { toast } from "sonner";
 import { refreshToken } from "@/services/auth.ts";
+import { clearAuth, useAuthStore } from "@/store/authStore.ts";
 
 // public fetcher (login & refresh token)
 export const publicFetcher = axios.create();
 publicFetcher.interceptors.request.use(async (config) => {
-  const access_token = localStorage.getItem("aqueduct.access_token");
-  if (access_token !== null) {
-    config.headers["Authorization"] = access_token;
+  if (useAuthStore.getState().accessToken !== null) {
+    config.headers["Authorization"] = useAuthStore.getState().accessToken;
   }
   return config;
 });
@@ -34,21 +34,25 @@ publicFetcher.interceptors.request.use(async (config) => {
 export const cronFetcher = axios.create();
 
 cronFetcher.interceptors.request.use(async (config) => {
-  const access_token = localStorage.getItem("aqueduct.access_token");
-  if (access_token === null) {
+  if (useAuthStore.getState().accessToken === null) {
+    clearAuth();
     toast.error("Session expired");
     window.location.href = paths.root.login.getHref();
     return config;
   }
 
-  config.headers["Authorization"] = access_token;
+  config.headers["Authorization"] = useAuthStore.getState().accessToken;
 
   if (
     JSON.parse(
-      Buffer.from(access_token.split(".")[1], "base64").toString("ascii"),
+      Buffer.from(
+        useAuthStore.getState().accessToken.split(".")[1],
+        "base64",
+      ).toString("ascii"),
     ).exp <
     Date.now() / 1000
   ) {
+    clearAuth();
     toast.error("Session expired");
     window.location.href = paths.root.login.getHref();
     return config;
@@ -60,17 +64,18 @@ cronFetcher.interceptors.request.use(async (config) => {
 export const fetcher = axios.create();
 
 fetcher.interceptors.request.use(async (config) => {
-  const access_token = localStorage.getItem("aqueduct.access_token");
-  if (access_token === null) {
+  if (useAuthStore.getState().accessToken === null) {
+    clearAuth();
     toast.error("Login required");
     window.location.href = paths.root.login.getHref();
     return config;
   }
 
-  config.headers["Authorization"] = access_token;
+  config.headers["Authorization"] = useAuthStore.getState().accessToken;
 
   const res = await refreshToken();
   if (res !== 200) {
+    clearAuth();
     toast.error("Session expired");
     window.location.href = paths.root.login.getHref();
     return config;

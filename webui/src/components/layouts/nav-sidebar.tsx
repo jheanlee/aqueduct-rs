@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { LogIn } from "lucide-react";
+import { LogIn, LogOut } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -30,8 +30,11 @@ import { NavLink } from "react-router";
 import { paths } from "@/config/paths.ts";
 import ToggleThemeButton from "@/components/theme/theme-toggle-button.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { clearAuth, useAuthStore } from "@/store/authStore.ts";
 
 export const NavSidebar = () => {
+  const { isLoggedIn } = useAuthStore();
+
   return (
     <div>
       <Sidebar collapsible="offcanvas" variant="inset">
@@ -58,10 +61,21 @@ export const NavSidebar = () => {
                 <NavLink
                   to={paths.root.login.getHref()}
                   className="h-max w-auto"
+                  onClick={() => {
+                    if (isLoggedIn) clearAuth();
+                  }}
                 >
-                  <Button size="icon" variant="ghost">
-                    <LogIn />
-                  </Button>
+                  {isLoggedIn ? (
+                    <Button variant="ghost">
+                      <LogOut />
+                      Logout
+                    </Button>
+                  ) : (
+                    <Button variant="ghost">
+                      <LogIn />
+                      Login
+                    </Button>
+                  )}
                 </NavLink>
               </SidebarMenuButton>
               <ToggleThemeButton />

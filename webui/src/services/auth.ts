@@ -14,22 +14,25 @@
  * limitations under the License.
  */
 
-import { cronFetcher, fetcher, publicFetcher } from "@/services/fetcher.ts";
+import { fetcher, publicFetcher } from "@/services/fetcher.ts";
 import { isAxiosError } from "axios";
+import {
+  clearAuth,
+  setAccessToken,
+  setRefreshToken,
+  useAuthStore,
+} from "@/store/authStore.ts";
 
 export const refreshToken = async () => {
   try {
     const res = await publicFetcher.post<{ access_token: string }>(
       "/api/refresh",
       {
-        refresh_token: localStorage.getItem("aqueduct.refresh_token"),
+        refresh_token: useAuthStore.getState().refreshToken,
       },
     );
 
-    localStorage.setItem("aqueduct.access_token", res.data.access_token);
-    fetcher.defaults.headers["Authorization"] = res.data.access_token;
-    cronFetcher.defaults.headers["Authorization"] = res.data.access_token;
-    publicFetcher.defaults.headers["Authorization"] = res.data.access_token;
+    setAccessToken(res.data.access_token);
     return 200;
   } catch (error) {
     if (isAxiosError(error)) {
@@ -54,11 +57,8 @@ export const login = async ({ username, password }: LoginParams) => {
       password,
     });
 
-    localStorage.setItem("aqueduct.refresh_token", res.data.access_token);
-    localStorage.setItem("aqueduct.access_token", res.data.access_token);
-    fetcher.defaults.headers["Authorization"] = res.data.access_token;
-    cronFetcher.defaults.headers["Authorization"] = res.data.access_token;
-    publicFetcher.defaults.headers["Authorization"] = res.data.access_token;
+    setAccessToken(res.data.access_token);
+    setRefreshToken(res.data.refresh_token);
     return 200;
   } catch (error) {
     if (isAxiosError(error)) {
@@ -70,9 +70,5 @@ export const login = async ({ username, password }: LoginParams) => {
 
 export const logout = async () => {
   void (await fetcher.post("/api/logout"));
-  localStorage.removeItem("aqueduct.refresh_token");
-  localStorage.removeItem("aqueduct.access_token");
-  fetcher.defaults.headers["Authorization"] = null;
-  cronFetcher.defaults.headers["Authorization"] = null;
-  publicFetcher.defaults.headers["Authorization"] = null;
+  clearAuth();
 };

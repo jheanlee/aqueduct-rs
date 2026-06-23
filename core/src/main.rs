@@ -158,6 +158,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     ));
 
     //  system info
+    #[cfg(target_os = "linux")]
+    sysinfo::set_open_files_limit(0);
     let system_info = Arc::new(SystemInfo {
         cpu_usage: Default::default(),
         used_memory: Default::default(),

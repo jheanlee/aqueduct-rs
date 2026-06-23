@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 use crate::system_info::error::Error;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use sysinfo::{MemoryRefreshKind, Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 use tokio::time::sleep;
@@ -36,7 +36,6 @@ pub async fn system_info_hot(
     system_info: Arc<SystemInfo>,
     cancellation_token: CancellationToken,
 ) -> Result<(), Error> {
-    sysinfo::set_open_files_limit(0);
     let mut sys = tokio::task::spawn_blocking(|| System::new_all())
         .await
         .inspect_err(|error| error!("System info thread panicked: {:?}", error))?;
@@ -87,36 +86,41 @@ pub async fn system_info_cold(
     system_info: Arc<SystemInfo>,
     cancellation_token: CancellationToken,
 ) -> Result<(), Error> {
-    sysinfo::set_open_files_limit(0);
-    let mut sys = tokio::task::spawn_blocking(|| System::new_all())
-        .await
-        .inspect_err(|error| error!("System info thread panicked: {:?}", error))?;
-    let pid_arr = [Pid::from(std::process::id() as usize)];
+    let mut sys =
+        tokio::task::spawn_blocking(|| Arc::new(std::sync::Mutex::new(System::new_all())))
+            .await
+            .inspect_err(|error| error!("System info thread panicked: {:?}", error))?;
 
     loop {
-        let system_info_clone = system_info.clone();
-        sys = tokio::task::spawn_blocking(move || {
-            sys.refresh_processes_specifics(
-                ProcessesToUpdate::Some(&pid_arr),
-                false,
-                ProcessRefreshKind::nothing().with_cpu().with_memory(),
-            );
-            system_info_clone.process_fd_count.store(
-                sys.process(pid_arr[0])
-                    .expect("The current process must exist")
-                    .open_files()
-                    .unwrap_or(0),
-                Ordering::Relaxed,
-            );
-            sys
-        })
-        .with_cancellation_token_owned(cancellation_token.clone())
-        .await
-        .ok_or(Error::Empty)?
-        .inspect_err(|error| error!("System info thread panicked: {:?}", error))?;
+        let sys_clone = sys.clone();
+        let fd_count = tokio::task::spawn_blocking(move || get_fd_count(sys_clone))
+            .with_cancellation_token_owned(cancellation_token.clone())
+            .await
+            .ok_or(Error::Empty)?
+            .inspect_err(|error| error!("System info thread panicked: {:?}", error))?
+            .unwrap_or(0);
 
-        sleep(Duration::from_secs(60))
+        system_info
+            .process_fd_count
+            .store(fd_count, Ordering::Relaxed);
+
+        sleep(Duration::from_secs(5))
             .with_cancellation_token_owned(cancellation_token.clone())
             .await;
     }
+}
+
+pub fn get_fd_count(sys: Arc<Mutex<System>>) -> Option<usize> {
+    let pid = Pid::from(std::process::id() as usize);
+    let mut sys = sys.lock().expect("sys should not be locked");
+
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[pid]),
+        false,
+        ProcessRefreshKind::nothing(),
+    );
+
+    sys.process(pid)
+        .expect("The current process must exist")
+        .open_files()
 }

@@ -17,6 +17,7 @@
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card.tsx";
@@ -93,31 +94,32 @@ export const Dashboard = () => {
   }, []);
 
   return (
-    <div className="flex flex-col gap-4 text-foreground">
+    <div className="grid gird-cols-1 md:grid-cols-2 gap-4 text-foreground">
       <Card>
         <CardHeader>
           <CardTitle>Tunnel Service Status</CardTitle>
+          <CardDescription>Update interval: 10s</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div>
-            <p>{`Uptime: ${tunnelStatus.uptime !== null ? formatTime(tunnelStatus.uptime) : "N/A"}`}</p>
-            <p>{`Active service count: ${tunnelStatus.active_service_count !== null ? tunnelStatus.active_service_count : "N/A"}`}</p>
-            <p>{`Active external connection count: ${tunnelStatus.active_external_connection_count !== null ? tunnelStatus.active_external_connection_count : "N/A"}`}</p>
-          </div>
+
+        <CardContent className="flex flex-col gap-1">
+          <p>{`Uptime: ${tunnelStatus.uptime !== null ? formatTime(tunnelStatus.uptime) : "N/A"}`}</p>
+          <p>{`Active service count: ${tunnelStatus.active_service_count !== null ? tunnelStatus.active_service_count : "N/A"}`}</p>
+          <p>{`Active external connection count: ${tunnelStatus.active_external_connection_count !== null ? tunnelStatus.active_external_connection_count : "N/A"}`}</p>
         </CardContent>
       </Card>
       <Card>
         <CardHeader>
           <CardTitle>System Status</CardTitle>
+          <CardDescription>
+            Update interval: 10s (60 s for file descriptor)
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div>
-            <p>{`Global CPU usage: ${systemStatus.cpu_usage !== null ? systemStatus.cpu_usage.toFixed(1) : "N/A"}`}</p>
-            <p>{`Global memory usage: ${systemStatus.used_memory !== null ? formatBytes(systemStatus.used_memory) : "N/A "}/${systemStatus.total_memory !== null ? formatBytes(systemStatus.total_memory) : " N/A"}`}</p>
-            <p>{`Process CPU usage: ${systemStatus.process_cpu_usage !== null ? systemStatus.process_cpu_usage.toFixed(1) : "N/A"}`}</p>
-            <p>{`Process memory usage (RSS): ${systemStatus.process_memory !== null ? formatBytes(systemStatus.process_memory) : "N/A"}`}</p>
-            <p>{`Process file descriptor count: ${systemStatus.process_fd_count !== null ? systemStatus.process_fd_count : "N/A"}`}</p>
-          </div>
+        <CardContent className="flex flex-col gap-1">
+          <p>{`Global CPU usage: ${systemStatus.cpu_usage !== null ? systemStatus.cpu_usage.toFixed(1) : "N/A"}`}</p>
+          <p>{`Global memory usage: ${systemStatus.used_memory !== null ? formatBytes(systemStatus.used_memory) : "N/A "}/${systemStatus.total_memory !== null ? formatBytes(systemStatus.total_memory) : " N/A"}`}</p>
+          <p>{`Process CPU usage: ${systemStatus.process_cpu_usage !== null ? systemStatus.process_cpu_usage.toFixed(1) : "N/A"}`}</p>
+          <p>{`Process memory usage (RSS): ${systemStatus.process_memory !== null ? formatBytes(systemStatus.process_memory) : "N/A"}`}</p>
+          <p>{`Process file descriptor count: ${systemStatus.process_fd_count !== null ? systemStatus.process_fd_count : "N/A"}`}</p>
         </CardContent>
       </Card>
     </div>
