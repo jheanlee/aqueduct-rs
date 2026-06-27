@@ -10,3 +10,4 @@ path = "src/lib.rs"
 
 [dependencies]
 sea-orm = { version = "2.0.0-rc.38", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros", "with-ipnetwork"] }
+serde = { version = "1.0.228", features = ["derive"] }

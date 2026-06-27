@@ -16,7 +16,7 @@
 
 import { z } from "zod";
 
-export const loginSchema = z.object({
+export const createUserSchema = z.object({
   username: z
     .string()
     .normalize()
@@ -44,4 +44,16 @@ export const loginSchema = z.object({
       error:
         "Password must only contain letters (A-Z, a-z), numbers (0-9) and symbols.",
     }),
+
+  label: z
+    .array(
+      z
+        .string()
+        .normalize()
+        .min(1, { error: "A label must have at least one character." })
+        .max(32, { error: "A label must not exceed 32 characters" }),
+    )
+    .max(32, { error: "A user may only have up to 32 labels" }),
+
+  administrator: z.boolean(),
 });

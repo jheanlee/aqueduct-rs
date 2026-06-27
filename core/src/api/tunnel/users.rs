@@ -15,6 +15,7 @@
  */
 use crate::api::control::ApiState;
 use crate::api::error::Error;
+use crate::orm::tunnel_user::list_users;
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -23,6 +24,15 @@ use axum::{Json, http};
 use serde::Deserialize;
 use serde_json::{json, to_string};
 use std::sync::Arc;
+
+pub async fn list_tunnel_users(
+    State(api_state): State<Arc<ApiState>>,
+) -> Result<Response<Body>, Error> {
+    let users = list_users(api_state.shared.db_connection.clone()).await?;
+    let response_builder =
+        Response::builder().header(http::header::CONTENT_TYPE, "application/json");
+    Ok(response_builder.body(Body::from(to_string(&users)?))?)
+}
 
 #[derive(Deserialize)]
 pub struct NewTunnelUserBody {

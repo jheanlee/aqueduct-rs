@@ -21,8 +21,8 @@ use crate::api::tunnel::access::{
     add_blacklist, add_whitelist, remove_blacklist, remove_whitelist,
 };
 use crate::api::tunnel::users::{
-    delete_tunnel_user, get_tunnel_usage_by_user, modify_tunnel_user_password, new_tunnel_user,
-    rotate_token,
+    delete_tunnel_user, get_tunnel_usage_by_user, list_tunnel_users, modify_tunnel_user_password,
+    new_tunnel_user, rotate_token,
 };
 use crate::common::model::Shared;
 use crate::common::tunnel_info::TunnelInfo;
@@ -115,6 +115,7 @@ pub async fn api_control(
 
     let api = Router::new()
         .route("/api/tunnel/users", post(new_tunnel_user))
+        .route("/api/tunnel/users", get(list_tunnel_users))
         .route("/api/tunnel/users/{id}", put(modify_tunnel_user_password))
         .route("/api/tunnel/users/{id}", delete(delete_tunnel_user))
         .route(

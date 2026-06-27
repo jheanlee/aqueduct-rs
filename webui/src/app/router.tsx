@@ -34,6 +34,14 @@ const createAppRouter = () =>
           },
         },
         {
+          path: paths.root.users.path,
+          lazy: async () => {
+            const { Users } = await import("@/app/routes/root/users");
+            return { Component: Users };
+          },
+          handle: { title: paths.root.users.title },
+        },
+        {
           path: paths.root.login.path,
           lazy: async () => {
             const { Login } = await import("@/app/routes/root/login");

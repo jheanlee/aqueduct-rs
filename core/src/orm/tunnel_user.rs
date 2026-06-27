@@ -19,7 +19,7 @@ use crate::orm::error::Error;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use chrono::{DateTime, NaiveDateTime, Utc};
-use entity::entities::tunnel_users::{ActiveModel, Column, Entity, Model};
+use entity::entities::tunnel_users::{ActiveModel, Column, Entity, ListUserPartialModel, Model};
 use nanoid::nanoid;
 use rand::{RngExt, rng};
 use sea_orm::{
@@ -171,4 +171,13 @@ async fn get_user_by_username(
         .one(&db_connection)
         .await?
         .ok_or(Error::NotFound)?)
+}
+
+pub async fn list_users(
+    db_connection: DatabaseConnection,
+) -> Result<Vec<ListUserPartialModel>, Error> {
+    Ok(Entity::find()
+        .into_partial_model()
+        .all(&db_connection)
+        .await?)
 }

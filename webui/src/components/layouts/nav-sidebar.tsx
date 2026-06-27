@@ -21,6 +21,7 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -31,6 +32,7 @@ import { paths } from "@/config/paths.ts";
 import ToggleThemeButton from "@/components/theme/theme-toggle-button.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { clearAuth, useAuthStore } from "@/store/authStore.ts";
+import { logout } from "@/services/auth.ts";
 
 export const NavSidebar = () => {
   const { isLoggedIn } = useAuthStore();
@@ -53,6 +55,18 @@ export const NavSidebar = () => {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+          <SidebarGroup>
+            <SidebarGroupLabel>Management</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem key="users">
+                  <SidebarMenuButton asChild>
+                    <NavLink to={paths.root.users.getHref()}>Users</NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
           <SidebarMenu>
@@ -62,7 +76,10 @@ export const NavSidebar = () => {
                   to={paths.root.login.getHref()}
                   className="h-max w-auto"
                   onClick={() => {
-                    if (isLoggedIn) clearAuth();
+                    if (isLoggedIn) {
+                      void logout();
+                      clearAuth();
+                    }
                   }}
                 >
                   {isLoggedIn ? (
