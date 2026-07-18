@@ -24,7 +24,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
     #[sea_orm(unique_key = "tunnel_sessions_user_id_bucket_start_tunnel_client_unique")]
-    pub user_id: String,
+    pub user_id: Option<String>,
     #[sea_orm(unique_key = "tunnel_sessions_user_id_bucket_start_tunnel_client_unique")]
     pub bucket_start: DateTime,
     #[sea_orm(

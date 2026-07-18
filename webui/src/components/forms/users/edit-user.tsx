@@ -13,21 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createUserSchema } from "@/form-schemas/users/create-user.ts";
+import { editUserSchema } from "@/form-schemas/users/edit-user.ts";
 import { z } from "zod";
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldSet,
-} from "@/components/ui/field.tsx";
-import { useEffect, useState } from "react";
-import { Input } from "@/components/ui/input.tsx";
+import { deleteTunnelUser, editTunnelUser } from "@/services/tunnel/users.ts";
 import {
   Dialog,
   DialogClose,
@@ -38,47 +29,65 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { Plus } from "lucide-react";
+import { Pencil } from "lucide-react";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldSet,
+} from "@/components/ui/field.tsx";
+import { Input } from "@/components/ui/input.tsx";
 import { Checkbox } from "@/components/ui/checkbox.tsx";
-import { createTunnelUser } from "@/services/tunnel/users.ts";
+import { Separator } from "@/components/ui/separator.tsx";
 import { toast } from "sonner";
 
-interface CreateUserInterface {
-  onClose: () => void;
+interface UserEntry {
+  id: string;
+  username: string;
+  label: string[];
+  administrator: boolean;
 }
 
-export const CreateUser = ({ onClose }: CreateUserInterface) => {
+interface EditUserInterface {
+  onClose: () => void;
+  user: UserEntry;
+}
+
+export const EditUser = ({ onClose, user }: EditUserInterface) => {
+  //  changable: set-new-password label admin
   const [submitStatus, setSubmitStatus] = useState<number>(200);
   const [dialogOpen, setDialogOpen] = useState<boolean>(false);
+  const [showPasswordInput, setShowPasswordInput] = useState<boolean>(false);
 
-  const getSubmitStatusMessage = () => {
-    switch (submitStatus) {
-      case 409:
-        return "A user with this username already exist.";
+  const getSubmitStatusMessage = (status: number) => {
+    switch (status) {
+      case 404:
+        return "This user does not exist.";
       case 500:
         return "Unable to connect to the server.";
       default:
-        return `An error has occurred. Error code: ${submitStatus}`;
+        return `An error has occurred. Error code: ${status}`;
     }
   };
 
-  const form = useForm<z.infer<typeof createUserSchema>>({
-    resolver: zodResolver(createUserSchema),
+  const form = useForm<z.infer<typeof editUserSchema>>({
+    resolver: zodResolver(editUserSchema),
     defaultValues: {
-      username: "",
-      password: "",
-      label: [],
-      administrator: false,
+      password: null,
+      label: user.label,
+      administrator: user.administrator,
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof createUserSchema>) => {
-    const res = await createTunnelUser(values);
+  const onSubmit = async (values: z.infer<typeof editUserSchema>) => {
+    const res = await editTunnelUser(user.id, values);
     setSubmitStatus(res);
 
     if (res === 200) {
       setDialogOpen(false);
-      toast.success(`Successfully created user "${values.username}"`);
+      toast.success(`Successfully updated user "${user.username}"`);
       onClose();
     }
   };
@@ -87,19 +96,15 @@ export const CreateUser = ({ onClose }: CreateUserInterface) => {
     if (!dialogOpen) {
       form.reset();
       setSubmitStatus(200);
+      setShowPasswordInput(false);
     }
   }, [dialogOpen]);
 
   return (
     <Dialog open={dialogOpen}>
       <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          className="w-32"
-          onClick={() => setDialogOpen(true)}
-        >
-          <Plus />
-          Create User
+        <Button variant="outline" onClick={() => setDialogOpen(true)}>
+          <Pencil />
         </Button>
       </DialogTrigger>
       <div>
@@ -109,43 +114,41 @@ export const CreateUser = ({ onClose }: CreateUserInterface) => {
             className="flex flex-col gap-4"
           >
             <DialogHeader>
-              <DialogTitle>Create User</DialogTitle>
+              <DialogTitle>{`Edit User "${user.username}"`}</DialogTitle>
             </DialogHeader>
             <FieldSet
               data-invalid={submitStatus !== 200}
               className="max-h-[50vh] overflow-y-auto"
             >
               <FieldGroup>
-                <Controller
-                  name="username"
-                  control={form.control}
-                  render={({ field, fieldState }) => (
-                    <Field>
-                      <FieldLabel>Username</FieldLabel>
-                      <Input
-                        type="text"
-                        placeholder="user"
-                        aria-invalid={fieldState.invalid}
-                        {...field}
-                      />
-                      {fieldState.invalid && (
-                        <FieldError errors={[fieldState.error]} />
-                      )}
-                    </Field>
-                  )}
-                />
+                <Field>
+                  <FieldLabel>Username</FieldLabel>
+                  <Input type="text" value={user.username} disabled />
+                </Field>
                 <Controller
                   name="password"
                   control={form.control}
                   render={({ field, fieldState }) => (
                     <Field>
                       <FieldLabel>Password</FieldLabel>
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        aria-invalid={fieldState.invalid}
-                        {...field}
-                      />
+                      {!showPasswordInput && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setShowPasswordInput(true)}
+                        >
+                          <Pencil />
+                          Change
+                        </Button>
+                      )}
+                      {showPasswordInput && (
+                        <Input
+                          type="password"
+                          placeholder="••••••••"
+                          aria-invalid={fieldState.invalid}
+                          {...field}
+                        />
+                      )}
                       {fieldState.invalid && (
                         <FieldError errors={[fieldState.error]} />
                       )}
@@ -202,8 +205,36 @@ export const CreateUser = ({ onClose }: CreateUserInterface) => {
                     </Field>
                   )}
                 />
+                <Separator />
+                <Field>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="text-destructive"
+                    onClick={() => {
+                      const deleteUser = async () => {
+                        const res = await deleteTunnelUser(user.id);
+                        if (res === 200) {
+                          toast.success(
+                            `Successfully deleted user "${user.username}"`,
+                          );
+                        } else {
+                          toast.error(getSubmitStatusMessage(res));
+                        }
+                        onClose();
+                      };
+
+                      void deleteUser();
+                      setDialogOpen(false);
+                    }}
+                  >
+                    Delete User
+                  </Button>
+                </Field>
                 {submitStatus !== 200 && (
-                  <FieldError>{getSubmitStatusMessage()}</FieldError>
+                  <FieldError>
+                    {getSubmitStatusMessage(submitStatus)}
+                  </FieldError>
                 )}
               </FieldGroup>
             </FieldSet>
@@ -212,7 +243,7 @@ export const CreateUser = ({ onClose }: CreateUserInterface) => {
                 <Button variant="outline">Cancel</Button>
               </DialogClose>
               <Field>
-                <Button type="submit">Create</Button>
+                <Button type="submit">Update</Button>
               </Field>
             </DialogFooter>
           </form>

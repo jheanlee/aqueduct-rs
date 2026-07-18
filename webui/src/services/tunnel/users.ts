@@ -18,6 +18,7 @@ import { cronFetcher, fetcher } from "@/services/fetcher.ts";
 import { isAxiosError } from "axios";
 import { createUserSchema } from "@/form-schemas/users/create-user.ts";
 import { z } from "zod";
+import type { editUserSchema } from "@/form-schemas/users/edit-user.ts";
 
 export const getTunnelUsers = async () => {
   try {
@@ -44,9 +45,56 @@ export const createTunnelUser = async (
     const res = await fetcher.post("/api/tunnel/users", values);
     return res.status;
   } catch (error) {
-    console.log(`Failed to create users: ${error}`);
+    console.log(`Failed to create user: ${error}`);
     if (isAxiosError(error)) {
-      return error.status;
+      return error.status || 500;
+    } else {
+      return 500;
+    }
+  }
+};
+
+export const editTunnelUser = async (
+  id: string,
+  values: z.infer<typeof editUserSchema>,
+) => {
+  try {
+    const res = await fetcher.put(`/api/tunnel/users/${id}`, values);
+    return res.status;
+  } catch (error) {
+    console.log(`Failed to edit user: ${error}`);
+    if (isAxiosError(error)) {
+      return error.status || 500;
+    } else {
+      return 500;
+    }
+  }
+};
+
+export const deleteTunnelUser = async (id: string) => {
+  try {
+    const res = await fetcher.delete(`/api/tunnel/users/${id}`);
+    return res.status;
+  } catch (error) {
+    console.log(`Failed to edit user: ${error}`);
+    if (isAxiosError(error)) {
+      return error.status || 500;
+    } else {
+      return 500;
+    }
+  }
+};
+
+export const rotateTunnelUserToken = async (id: string) => {
+  try {
+    const res = await fetcher.post<{ token: string }>(
+      `/api/tunnel/users/${id}/token/rotate`,
+    );
+    return res.status;
+  } catch (error) {
+    console.log(`Failed to edit user: ${error}`);
+    if (isAxiosError(error)) {
+      return error.status || 500;
     } else {
       return 500;
     }

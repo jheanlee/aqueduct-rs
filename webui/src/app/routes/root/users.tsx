@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import { Button } from "@/components/ui/button.tsx";
-import { Pencil } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -28,6 +26,7 @@ import { useEffect, useState } from "react";
 import { getTunnelUsers } from "@/services/tunnel/users.ts";
 import { Badge } from "@/components/ui/badge";
 import { CreateUser } from "@/components/forms/users/create-user.tsx";
+import { EditUser } from "@/components/forms/users/edit-user.tsx";
 
 export const Users = () => {
   const [users, setUsers] = useState<
@@ -103,9 +102,15 @@ export const Users = () => {
                     </TableCell>
                     <TableCell className="sticky right-0 z-10 bg-background transition-colors group-hover:bg-muted/50">
                       <div className="flex flex-row gap-1 justify-end">
-                        <Button variant="outline">
-                          <Pencil />
-                        </Button>
+                        <EditUser
+                          onClose={triggerUsersUpdate}
+                          user={{
+                            id: item.id,
+                            username: item.username,
+                            administrator: item.administrator,
+                            label: item.label,
+                          }}
+                        />
                       </div>
                     </TableCell>
                   </TableRow>

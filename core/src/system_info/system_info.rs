@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 use crate::system_info::error::Error;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use sysinfo::{MemoryRefreshKind, Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 use tokio::time::sleep;
@@ -86,10 +86,9 @@ pub async fn system_info_cold(
     system_info: Arc<SystemInfo>,
     cancellation_token: CancellationToken,
 ) -> Result<(), Error> {
-    let mut sys =
-        tokio::task::spawn_blocking(|| Arc::new(std::sync::Mutex::new(System::new_all())))
-            .await
-            .inspect_err(|error| error!("System info thread panicked: {:?}", error))?;
+    let sys = tokio::task::spawn_blocking(|| Arc::new(std::sync::Mutex::new(System::new_all())))
+        .await
+        .inspect_err(|error| error!("System info thread panicked: {:?}", error))?;
 
     loop {
         let sys_clone = sys.clone();
@@ -110,7 +109,7 @@ pub async fn system_info_cold(
     }
 }
 
-pub fn get_fd_count(sys: Arc<Mutex<System>>) -> Option<usize> {
+pub fn get_fd_count(sys: Arc<std::sync::Mutex<System>>) -> Option<usize> {
     let pid = Pid::from(std::process::id() as usize);
     let mut sys = sys.lock().expect("sys should not be locked");
 

@@ -16,12 +16,14 @@
 
 import { AppRouter } from "@/app/router.tsx";
 import { ThemeProvider } from "@/components/theme/theme-provider.tsx";
+import { Toaster } from "sonner";
 
 export const App = () => {
   return (
     <>
       <ThemeProvider>
         <AppRouter />
+        <Toaster />
       </ThemeProvider>
     </>
   );

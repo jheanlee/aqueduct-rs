@@ -29,8 +29,8 @@ export class TunnelSessions {
   @PrimaryKey({ type: "bigint", autoincrement: true })
   id!: string;
 
-  @ManyToOne(() => TunnelUsers)
-  user!: TunnelUsers;
+  @ManyToOne(() => TunnelUsers, { deleteRule: "set null" })
+  user!: TunnelUsers | null;
 
   @Property({ type: "timestamp" })
   bucketStart!: Date;
