@@ -15,6 +15,7 @@
  */
 
 use crate::common::model::Shared;
+use crate::common::tunnel_info::TunnelInfo;
 use crate::core::message::message::{ClientServiceMessage, MessageType};
 use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::error::TunnelError::NoPortsAvailable;
@@ -46,9 +47,14 @@ pub async fn tunnel_client_proxy_control(
     flags: Flags,
     tunnel_client_user_id: String,
     tunnel_status: Arc<TunnelStatus>,
+    tunnel_info: Arc<TunnelInfo>,
     control_message_sender_client: ControlMessageSenderClient,
     tunnel_global_connection_semaphore: Arc<Semaphore>,
 ) -> Result<(), TunnelError> {
+    tunnel_info
+        .active_service_count
+        .fetch_add(1, Ordering::Relaxed);
+
     //  permit
     let client_semaphore = Arc::new(Semaphore::new(
         tunnel_status.client_connection_limit as usize,
@@ -197,6 +203,10 @@ pub async fn tunnel_client_proxy_control(
     let mut available_ports = tunnel_status.available_ports.write().await;
     available_ports.push_back(port);
 
+    tunnel_info
+        .active_service_count
+        .fetch_sub(1, Ordering::Relaxed);
+
     //  fd closed on drop
     Ok(())
 }
@@ -206,9 +216,13 @@ pub async fn tunnel_client_proxy(
     flags: Flags,
     shared: Shared,
     tunnel_client: TunnelClient,
+    tunnel_info: Arc<TunnelInfo>,
     proxy_client: ProxyClient,
 ) -> Result<(), TunnelError> {
     debug!("TCP proxying started");
+    tunnel_info
+        .active_external_connection_count
+        .fetch_add(1, Ordering::Relaxed);
 
     const BUFFER_SIZE: usize = 32768;
 
@@ -242,7 +256,7 @@ pub async fn tunnel_client_proxy(
     loop {
         select! {
             biased;
-            _client_cancealled = flags.local_cancellation_token.cancelled() => {
+            _ = flags.local_cancellation_token.cancelled() => {
                 break;
             }
             res = &mut io_copy => {
@@ -304,5 +318,8 @@ pub async fn tunnel_client_proxy(
             external_connection_count_update: false,
         })
         .await; //  only fails when global cancellation token is set
+    tunnel_info
+        .active_external_connection_count
+        .fetch_sub(1, Ordering::Relaxed);
     Ok(())
 }

@@ -16,4 +16,5 @@
 pub mod control;
 mod error;
 pub mod jwt;
+pub mod status;
 pub mod tunnel;

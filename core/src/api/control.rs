@@ -15,15 +15,19 @@
  */
 use crate::api::jwt::auth::{access_token_middleware, login, logout, refresh_token};
 use crate::api::jwt::key::JwtKeyPair;
+use crate::api::status::system::get_system_status;
+use crate::api::status::tunnel::get_tunnel_status;
 use crate::api::tunnel::access::{
     add_blacklist, add_whitelist, remove_blacklist, remove_whitelist,
 };
 use crate::api::tunnel::users::{
-    delete_tunnel_user, get_tunnel_usage_by_user, modify_tunnel_user_password, new_tunnel_user,
-    rotate_token,
+    delete_tunnel_user, get_tunnel_usage_by_user, list_tunnel_users, modify_tunnel_user_password,
+    new_tunnel_user, rotate_token,
 };
 use crate::common::model::Shared;
+use crate::common::tunnel_info::TunnelInfo;
 use crate::config::access_handler::update_access_ip_tables;
+use crate::system_info::system_info::SystemInfo;
 use axum::extract::{Request, State};
 use axum::middleware::Next;
 use axum::response::Response;
@@ -42,7 +46,10 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
 pub struct ApiState {
+    pub start_time: Instant,
     pub shared: Shared,
+    pub system_info: Arc<SystemInfo>,
+    pub tunnel_info: Arc<TunnelInfo>,
     pub whitelist_table: Arc<RwLock<IpNetworkTable<()>>>,
     pub blacklist_table: Arc<RwLock<IpNetworkTable<()>>>,
     pub jti_map: DashMap<String, (String, String, Instant)>,
@@ -53,6 +60,8 @@ pub struct ApiState {
 pub async fn api_control(
     api_host: SocketAddr,
     shared: Shared,
+    system_info: Arc<SystemInfo>,
+    tunnel_info: Arc<TunnelInfo>,
     whitelist_table: Arc<RwLock<IpNetworkTable<()>>>,
     blacklist_table: Arc<RwLock<IpNetworkTable<()>>>,
     jwt_refresh_keys: JwtKeyPair,
@@ -60,7 +69,10 @@ pub async fn api_control(
     cancellation_token: CancellationToken,
 ) {
     let state = Arc::new(ApiState {
+        start_time: Instant::now(),
         shared,
+        system_info,
+        tunnel_info,
         whitelist_table,
         blacklist_table,
         jti_map: DashMap::new(),
@@ -103,6 +115,7 @@ pub async fn api_control(
 
     let api = Router::new()
         .route("/api/tunnel/users", post(new_tunnel_user))
+        .route("/api/tunnel/users", get(list_tunnel_users))
         .route("/api/tunnel/users/{id}", put(modify_tunnel_user_password))
         .route("/api/tunnel/users/{id}", delete(delete_tunnel_user))
         .route(
@@ -111,6 +124,8 @@ pub async fn api_control(
         )
         .route("/api/tunnel/users/{id}/token/rotate", post(rotate_token))
         .merge(with_access_update)
+        .route("/api/status/system", get(get_system_status))
+        .route("/api/status/tunnel", get(get_tunnel_status))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             access_token_middleware,

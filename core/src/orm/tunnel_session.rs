@@ -83,7 +83,7 @@ pub async fn database_tunnel_session_batch_thread(
                             })
                             .or_insert(ActiveModel {
                                 id: Default::default(),
-                                user_id: Set(user_id),
+                                user_id: Set(Some(user_id)),
                                 bucket_start: Set(bucket_time(BUCKET_LIMIT_MIN)),
                                 tunnel_client: Set(sea_orm::prelude::IpNetwork::new(tunnel_client, 32).unwrap()),
                                 inbound: Set(inbound),

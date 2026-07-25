@@ -18,6 +18,7 @@ use crate::api::jwt::key::init_jwt_keys;
 use crate::common::auth_manager::AuthManager;
 use crate::common::model::Shared;
 use crate::common::signal_handler::signal_handler;
+use crate::common::tunnel_info::TunnelInfo;
 use crate::config::access_handler::update_access_ip_tables;
 use crate::config::config_handler::read_config;
 use crate::config::db_config_handler::read_db_config;
@@ -25,6 +26,7 @@ use crate::core::tunnel::control::tunnel_client_control;
 use crate::core::tunnel::model::{Flags, TunnelStatus};
 use crate::core::tunnel::pending_cleaner::pending_client_cleaner;
 use crate::orm::tunnel_session::database_tunnel_session_batch_thread;
+use crate::system_info::system_info::{SystemInfo, system_info_cold, system_info_hot};
 use dashmap::DashMap;
 use ip_network_table::IpNetworkTable;
 use rustls::pki_types::pem::PemObject;
@@ -50,6 +52,7 @@ mod common;
 mod config;
 mod core;
 mod orm;
+pub mod system_info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
@@ -154,6 +157,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         tunnel_status.clone(),
     ));
 
+    //  system info
+    #[cfg(target_os = "linux")]
+    sysinfo::set_open_files_limit(0);
+    let system_info = Arc::new(SystemInfo {
+        cpu_usage: Default::default(),
+        used_memory: Default::default(),
+        total_memory: Default::default(),
+        process_cpu_usage: Default::default(),
+        process_memory: Default::default(),
+        process_fd_count: Default::default(),
+    });
+    let system_info_hot_thread = tokio::spawn(system_info_hot(
+        system_info.clone(),
+        cancellation_token.clone(),
+    ));
+    let system_info_cold_thread = tokio::spawn(system_info_cold(
+        system_info.clone(),
+        cancellation_token.clone(),
+    ));
+
+    //  tunnel info
+    let tunnel_info = Arc::new(TunnelInfo {
+        active_service_count: Default::default(),
+        active_external_connection_count: Default::default(),
+    });
+
     //  api
     let refresh_token_keys = match init_jwt_keys(
         config.jwt_refresh_private_key_path,
@@ -188,6 +217,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     let api_thread = tokio::spawn(api_control(
         config.api_host,
         shared.clone(),
+        system_info.clone(),
+        tunnel_info.clone(),
         whitelist.clone(),
         blacklist.clone(),
         refresh_token_keys,
@@ -263,6 +294,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                     let local_cancellation_token = cancellation_token.child_token();
                     let shared_clone = shared.clone();
                     let tunnel_status_clone = tunnel_status.clone();
+                    let tunnel_info_clone = tunnel_info.clone();
                     let global_connection_semaphore_clone = global_connection_semaphore.clone();
 
                     tunnel_threads.spawn(
@@ -279,6 +311,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                                         tls_stream,
                                         client_addr,
                                         tunnel_status_clone,
+                                        tunnel_info_clone,
                                         global_connection_semaphore_clone
                                     ).await;
                                 }
@@ -300,6 +333,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     cancellation_token.cancel();
     warn!("Exit signal received. Cleaning up");
     let _ = signal_handler_thread.await;
+    let _ = system_info_hot_thread.await;
+    let _ = system_info_cold_thread.await;
     let _ = api_thread.await;
     let _ = database_tunnel_sessions_batch_thread.await;
     let _ = pending_cleaner_thread.await;
