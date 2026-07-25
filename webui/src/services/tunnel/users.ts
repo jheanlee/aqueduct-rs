@@ -90,7 +90,7 @@ export const rotateTunnelUserToken = async (id: string) => {
     const res = await fetcher.post<{ token: string }>(
       `/api/tunnel/users/${id}/token/rotate`,
     );
-    return res.status;
+    return res.data.token;
   } catch (error) {
     console.log(`Failed to edit user: ${error}`);
     if (isAxiosError(error)) {

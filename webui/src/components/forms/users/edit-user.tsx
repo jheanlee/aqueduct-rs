@@ -108,7 +108,7 @@ export const EditUser = ({ onClose, user }: EditUserInterface) => {
         </Button>
       </DialogTrigger>
       <div>
-        <DialogContent>
+        <DialogContent showCloseButton={false}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col gap-4"

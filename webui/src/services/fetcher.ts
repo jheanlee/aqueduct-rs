@@ -34,21 +34,19 @@ publicFetcher.interceptors.request.use(async (config) => {
 export const cronFetcher = axios.create();
 
 cronFetcher.interceptors.request.use(async (config) => {
-  if (useAuthStore.getState().accessToken === null) {
+  const accessToken = useAuthStore.getState().accessToken;
+  if (accessToken === null) {
     clearAuth();
     toast.error("Session expired");
     window.location.href = paths.root.login.getHref();
     return config;
   }
 
-  config.headers["Authorization"] = useAuthStore.getState().accessToken;
+  config.headers["Authorization"] = accessToken;
 
   if (
     JSON.parse(
-      Buffer.from(
-        useAuthStore.getState().accessToken.split(".")[1],
-        "base64",
-      ).toString("ascii"),
+      Buffer.from(accessToken.split(".")[1], "base64").toString("ascii"),
     ).exp <
     Date.now() / 1000
   ) {
@@ -64,14 +62,15 @@ cronFetcher.interceptors.request.use(async (config) => {
 export const fetcher = axios.create();
 
 fetcher.interceptors.request.use(async (config) => {
-  if (useAuthStore.getState().accessToken === null) {
+  const accessToken = useAuthStore.getState().accessToken;
+  if (accessToken === null) {
     clearAuth();
     toast.error("Login required");
     window.location.href = paths.root.login.getHref();
     return config;
   }
 
-  config.headers["Authorization"] = useAuthStore.getState().accessToken;
+  config.headers["Authorization"] = accessToken;
 
   const res = await refreshToken();
   if (res !== 200) {

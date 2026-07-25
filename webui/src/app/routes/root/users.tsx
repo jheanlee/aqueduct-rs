@@ -27,6 +27,22 @@ import { getTunnelUsers } from "@/services/tunnel/users.ts";
 import { Badge } from "@/components/ui/badge";
 import { CreateUser } from "@/components/forms/users/create-user.tsx";
 import { EditUser } from "@/components/forms/users/edit-user.tsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.tsx";
+import { Menu, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button.tsx";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+} from "@/components/ui/dialog.tsx";
+import { RotateToken } from "@/components/subpages/rotate-token.tsx";
 
 export const Users = () => {
   const [users, setUsers] = useState<
@@ -40,6 +56,9 @@ export const Users = () => {
     | null
   >(null);
   const [usersUpdateTrigger, setUsersUpdateTrigger] = useState<boolean>(false);
+  const [rotateTokenDialogTarget, setRotateTokenDialogTarget] = useState<
+    string | null
+  >(null);
 
   const triggerUsersUpdate = () => setUsersUpdateTrigger(!usersUpdateTrigger);
 
@@ -111,6 +130,25 @@ export const Users = () => {
                             label: item.label,
                           }}
                         />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline">
+                              <Menu />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-36">
+                            <DropdownMenuGroup>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  setRotateTokenDialogTarget(item.id)
+                                }
+                              >
+                                <RefreshCw />
+                                Refresh Token
+                              </DropdownMenuItem>
+                            </DropdownMenuGroup>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -118,6 +156,18 @@ export const Users = () => {
               })}
           </TableBody>
         </Table>
+        <Dialog open={rotateTokenDialogTarget !== null}>
+          <DialogContent showCloseButton={false} className="sm:max-w-md">
+            <RotateToken id={rotateTokenDialogTarget} />
+            <DialogFooter>
+              <DialogClose>
+                <Button onClick={() => setRotateTokenDialogTarget(null)}>
+                  Close
+                </Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
