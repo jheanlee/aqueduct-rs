@@ -50,6 +50,14 @@ const createAppRouter = () =>
           handle: { title: paths.root.login.title },
         },
         {
+          path: paths.root.settings.path,
+          lazy: async () => {
+            const { Settings } = await import("@/app/routes/root/settings");
+            return { Component: Settings };
+          },
+          handle: { title: paths.root.settings.title },
+        },
+        {
           path: paths.root.notFound.path,
           lazy: async () => {
             const { NotFound } = await import("@/app/routes/root/not-found");

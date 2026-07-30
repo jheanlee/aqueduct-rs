@@ -13,6 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pub mod access;
-pub mod settings;
-pub mod users;
+
+import { z } from "zod";
+
+export const settingsSchema = z.object({
+  whitelistEnabled: z.boolean(),
+  blacklistEnabled: z.boolean(),
+
+  whitelist: z.string().normalize(),
+  blacklist: z.string().normalize(),
+});
+
+export interface SettingsValidated {
+  whitelist_enabled: boolean;
+  blacklist_enabled: boolean;
+
+  whitelist: string[];
+  blacklist: string[];
+}

@@ -16,10 +16,7 @@
 use crate::orm::error::Error;
 use entity::entities::ip_whitelist::{ActiveModel, Entity};
 use ip_network::IpNetwork;
-use sea_orm::{
-    ActiveModelTrait, DatabaseConnection, DbErr, EntityTrait, IntoActiveModel, RuntimeErr, Set,
-    sqlx,
-};
+use sea_orm::{DatabaseConnection, DbErr, EntityTrait, RuntimeErr, Set, sqlx};
 use serde::Deserialize;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -30,7 +27,7 @@ pub async fn get_whitelist(db_connection: DatabaseConnection) -> Result<Vec<IpNe
         .await?
         .into_iter()
         .filter_map(|v| {
-            let mask = match v.network.ip() {
+            let mask = match v.network.mask() {
                 IpAddr::V4(addr) => {
                     let mask: u32 = addr.into();
                     mask.count_ones() as u8
@@ -47,11 +44,11 @@ pub async fn get_whitelist(db_connection: DatabaseConnection) -> Result<Vec<IpNe
 }
 
 #[derive(Deserialize)]
-pub struct WhitelistEntry {
+struct WhitelistEntry {
     pub network: String,
     pub notes: String,
 }
-pub async fn add_whitelist(
+async fn add_whitelist(
     db_connection: DatabaseConnection,
     values: Vec<WhitelistEntry>,
 ) -> Result<(), Error> {
@@ -85,13 +82,29 @@ pub async fn add_whitelist(
     }
 }
 
-pub async fn delete_whitelist(db_connection: DatabaseConnection, id: i32) -> Result<(), Error> {
-    Entity::find_by_id(id)
-        .one(&db_connection)
-        .await?
-        .ok_or(Error::NotFound)?
-        .into_active_model()
-        .delete(&db_connection)
-        .await?;
+// pub async fn delete_whitelist(db_connection: DatabaseConnection, id: i32) -> Result<(), Error> {
+//     Entity::find_by_id(id)
+//         .one(&db_connection)
+//         .await?
+//         .ok_or(Error::NotFound)?
+//         .into_active_model()
+//         .delete(&db_connection)
+//         .await?;
+//     Ok(())
+// }
+
+pub async fn set_whitelist(
+    db_connection: DatabaseConnection,
+    whitelist: Vec<IpNetwork>,
+) -> Result<(), Error> {
+    Entity::delete_many().exec(&db_connection).await?;
+    let whitelist_entries: Vec<WhitelistEntry> = whitelist
+        .iter()
+        .map(|entry| WhitelistEntry {
+            network: entry.to_string(),
+            notes: "".to_string(),
+        })
+        .collect();
+    add_whitelist(db_connection, whitelist_entries).await?;
     Ok(())
 }

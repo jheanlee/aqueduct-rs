@@ -45,7 +45,7 @@ export const NavSidebar = () => {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem key="home">
+                <SidebarMenuItem key="dashboard">
                   <SidebarMenuButton asChild>
                     <NavLink to={paths.root.dashboard.getHref()}>
                       Dashboard
@@ -62,6 +62,13 @@ export const NavSidebar = () => {
                 <SidebarMenuItem key="users">
                   <SidebarMenuButton asChild>
                     <NavLink to={paths.root.users.getHref()}>Users</NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem key="settings">
+                  <SidebarMenuButton asChild>
+                    <NavLink to={paths.root.settings.getHref()}>
+                      Settings
+                    </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
