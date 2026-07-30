@@ -17,9 +17,10 @@ use crate::api::jwt::auth::{access_token_middleware, login, logout, refresh_toke
 use crate::api::jwt::key::JwtKeyPair;
 use crate::api::status::system::get_system_status;
 use crate::api::status::tunnel::get_tunnel_status;
-use crate::api::tunnel::access::{
-    add_blacklist, add_whitelist, remove_blacklist, remove_whitelist,
-};
+// use crate::api::tunnel::access::{
+//     add_blacklist, add_whitelist, remove_blacklist, remove_whitelist,
+// };
+use crate::api::tunnel::settings::{get_settings, set_settings};
 use crate::api::tunnel::users::{
     delete_tunnel_user, get_tunnel_usage_by_user, list_tunnel_users, modify_tunnel_user_password,
     new_tunnel_user, rotate_token,
@@ -98,16 +99,17 @@ pub async fn api_control(
     });
 
     let with_access_update = Router::new()
-        .route("/api/tunnel/access/whitelist", post(add_whitelist))
-        .route(
-            "/api/tunnel/access/whitelist/{id}",
-            delete(remove_whitelist),
-        )
-        .route("/api/tunnel/access/blacklist", post(add_blacklist))
-        .route(
-            "/api/tunnel/access/blacklist/{id}",
-            delete(remove_blacklist),
-        )
+        // .route("/api/tunnel/access/whitelist", post(add_whitelist))
+        // .route(
+        //     "/api/tunnel/access/whitelist/{id}",
+        //     delete(remove_whitelist),
+        // )
+        // .route("/api/tunnel/access/blacklist", post(add_blacklist))
+        // .route(
+        //     "/api/tunnel/access/blacklist/{id}",
+        //     delete(remove_blacklist),
+        // )
+        .route("/api/tunnel/settings", put(set_settings))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             update_access_middleware,
@@ -124,6 +126,7 @@ pub async fn api_control(
         )
         .route("/api/tunnel/users/{id}/token/rotate", post(rotate_token))
         .merge(with_access_update)
+        .route("/api/tunnel/settings", get(get_settings))
         .route("/api/status/system", get(get_system_status))
         .route("/api/status/tunnel", get(get_tunnel_status))
         .layer(middleware::from_fn_with_state(

@@ -25,6 +25,7 @@ pub enum Error {
     HttpError(axum::http::Error),
     JWTError(jsonwebtoken::errors::Error),
     IoError(std::io::Error),
+    ConfigError(crate::config::error::ConfigError),
 }
 
 impl std::fmt::Display for Error {
@@ -35,6 +36,7 @@ impl std::fmt::Display for Error {
             Self::HttpError(e) => write!(f, "HttpError: {e}"),
             Self::JWTError(e) => write!(f, "JWTError: {e}"),
             Self::IoError(e) => write!(f, "IoError: {e}"),
+            Self::ConfigError(e) => write!(f, "ConfigError: {e}"),
         }
     }
 }
@@ -59,6 +61,7 @@ impl IntoResponse for Error {
             Error::HttpError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             Error::JWTError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             Error::IoError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            Error::ConfigError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }
 }
@@ -90,5 +93,14 @@ impl From<jsonwebtoken::errors::Error> for Error {
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
         Self::IoError(error)
+    }
+}
+
+impl From<crate::config::error::ConfigError> for Error {
+    fn from(error: crate::config::error::ConfigError) -> Self {
+        match error {
+            crate::config::error::ConfigError::OrmError(e) => Self::DatabaseError(e),
+            e => Self::ConfigError(e),
+        }
     }
 }

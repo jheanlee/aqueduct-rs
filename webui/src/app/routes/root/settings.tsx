@@ -13,6 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pub mod access;
-pub mod settings;
-pub mod users;
+
+import { SettingsForm } from "@/components/forms/settings.tsx";
+
+export const Settings = () => {
+  return (
+    <div className="w-full">
+      <SettingsForm />
+    </div>
+  );
+};

@@ -18,5 +18,5 @@ pub mod access_handler;
 mod args;
 pub mod config_handler;
 pub mod db_config_handler;
-mod error;
+pub mod error;
 pub mod tunnel;
