@@ -17,7 +17,7 @@ use crate::api::control::ApiState;
 use crate::api::error::Error;
 use crate::config::db_config_handler::read_db_config;
 use crate::orm::blacklist::{get_blacklist, set_blacklist};
-use crate::orm::settings::{SettingsKey, read_settings, set_settings_value};
+use crate::orm::settings::{SettingsKey, set_settings_value};
 use crate::orm::whitelist::{get_whitelist, set_whitelist};
 use axum::body::Body;
 use axum::extract::State;

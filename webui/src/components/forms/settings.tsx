@@ -55,8 +55,8 @@ export const SettingsForm = () => {
     defaultValues: {
       whitelistEnabled: false,
       blacklistEnabled: false,
-      whitelist: null,
-      blacklist: null,
+      whitelist: "",
+      blacklist: "",
     },
   });
 
