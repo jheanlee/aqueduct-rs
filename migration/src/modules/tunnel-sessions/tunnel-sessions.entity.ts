@@ -16,6 +16,7 @@
 
 import {
   Entity,
+  Index,
   ManyToOne,
   PrimaryKey,
   Property,
@@ -25,6 +26,14 @@ import { TunnelUsers } from "../tunnel-users/tunnel-users.entity.js";
 
 @Entity()
 @Unique({ properties: ["user", "bucketStart", "tunnelClient"] })
+@Index({
+  name: "idx_tunnel_sessions_user_bucket_start",
+  properties: ["user", "bucketStart"],
+})
+@Index({
+  name: "idx_tunnel_sessions_bucket_start",
+  properties: ["bucketStart"],
+})
 export class TunnelSessions {
   @PrimaryKey({ type: "bigint", autoincrement: true })
   id!: string;

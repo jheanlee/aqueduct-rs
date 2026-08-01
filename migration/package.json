@@ -16,23 +16,21 @@
   "main": "src/server.ts",
   "scripts": {
     "build": "tsc",
-    "start": "node --no-warnings=ExperimentalWarning --loader ts-node/esm src/server.ts",
-    "test": "vitest"
+    "start": "node --no-warnings=ExperimentalWarning --loader ts-node/esm src/server.ts"
   },
   "dependencies": {
-    "@mikro-orm/core": "^6.6.14",
-    "@mikro-orm/migrations": "^6.6.14",
-    "@mikro-orm/postgresql": "^6.6.14",
-    "@mikro-orm/reflection": "^6.6.14",
-    "@mikro-orm/seeder": "^6.6.14",
+    "@mikro-orm/core": "^6.6.16",
+    "@mikro-orm/migrations": "^6.6.16",
+    "@mikro-orm/postgresql": "^6.6.16",
+    "@mikro-orm/reflection": "^6.6.16",
+    "@mikro-orm/seeder": "^6.6.16",
     "dotenv": "^17.2.3"
   },
   "devDependencies": {
-    "@mikro-orm/cli": "^6.6.14",
+    "@mikro-orm/cli": "^6.6.16",
     "@types/node": "^24.10.1",
     "prettier": "^3.8.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3",
-    "vitest": "^4.1.8"
+    "typescript": "^5.9.3"
   }
 }

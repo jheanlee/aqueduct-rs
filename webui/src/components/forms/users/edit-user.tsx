@@ -143,10 +143,11 @@ export const EditUser = ({ onClose, user }: EditUserInterface) => {
                       )}
                       {showPasswordInput && (
                         <Input
+                          {...field}
                           type="password"
                           placeholder="••••••••"
+                          value={field.value ?? ""}
                           aria-invalid={fieldState.invalid}
-                          {...field}
                         />
                       )}
                       {fieldState.invalid && (

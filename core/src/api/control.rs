@@ -21,9 +21,10 @@ use crate::api::status::tunnel::get_tunnel_status;
 //     add_blacklist, add_whitelist, remove_blacklist, remove_whitelist,
 // };
 use crate::api::tunnel::settings::{get_settings, set_settings};
+use crate::api::tunnel::usage::{get_tunnel_usage_by_user, get_tunnel_usage_overall};
 use crate::api::tunnel::users::{
-    delete_tunnel_user, get_tunnel_usage_by_user, list_tunnel_users, modify_tunnel_user_password,
-    new_tunnel_user, rotate_token,
+    delete_tunnel_user, list_tunnel_users, modify_tunnel_user_password, new_tunnel_user,
+    rotate_token,
 };
 use crate::common::model::Shared;
 use crate::common::tunnel_info::TunnelInfo;
@@ -120,10 +121,8 @@ pub async fn api_control(
         .route("/api/tunnel/users", get(list_tunnel_users))
         .route("/api/tunnel/users/{id}", put(modify_tunnel_user_password))
         .route("/api/tunnel/users/{id}", delete(delete_tunnel_user))
-        .route(
-            "/api/tunnel/users/{id}/usage",
-            get(get_tunnel_usage_by_user),
-        )
+        .route("/api/tunnel/usage", get(get_tunnel_usage_overall))
+        .route("/api/tunnel/usage/{id}", get(get_tunnel_usage_by_user))
         .route("/api/tunnel/users/{id}/token/rotate", post(rotate_token))
         .merge(with_access_update)
         .route("/api/tunnel/settings", get(get_settings))

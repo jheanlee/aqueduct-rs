@@ -23,6 +23,22 @@ import {
 } from "@/components/ui/card.tsx";
 import { useEffect, useState } from "react";
 import { get_system_status, get_tunnel_status } from "@/services/status.ts";
+import {
+  handleUsageChartDataPoints,
+  TunnelUsageConnectionsChart,
+  TunnelUsageIOChart,
+  type UsageDataPointFormatted,
+} from "@/components/charts/tunnel-usage.tsx";
+import { getTunnelUsage } from "@/services/tunnel/usage.ts";
+import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.tsx";
 
 export const Dashboard = () => {
   const [systemStatus, setSystemStatus] = useState<{
@@ -49,6 +65,18 @@ export const Dashboard = () => {
     active_service_count: null,
     active_external_connection_count: null,
   });
+
+  const [usageChartData, setUsageChartData] = useState<
+    UsageDataPointFormatted[]
+  >([]);
+  const [usageChartZoom, setUsageChartZoom] = useState<string>("daily");
+
+  const usageChartZoomSelectItems = [
+    { label: "Last 24 hours", value: "daily" },
+    { label: "Last 7 days", value: "weekly" },
+    { label: "Last 30 days", value: "monthly" },
+    { label: "Last 12 months", value: "yearly" },
+  ];
 
   const formatTime = (time: number) => {
     const days = Math.floor(time / 86400);
@@ -88,10 +116,69 @@ export const Dashboard = () => {
 
     void fetchData();
 
-    const intervalId = setInterval(fetchData, 10000);
+    const intervalID = setInterval(fetchData, 10000);
 
-    return () => clearInterval(intervalId);
+    return () => clearInterval(intervalID);
   }, []);
+
+  useEffect(() => {
+    const getResolution = (zoom: string) => {
+      switch (zoom) {
+        case "daily":
+          return "ten_minutes";
+        case "weekly":
+          return "hourly";
+        case "monthly":
+          return "daily";
+        case "yearly":
+          return "weekly";
+        default:
+          return "ten_minutes";
+      }
+    };
+
+    const dateNow = Date.now();
+
+    const getQueryStart = (queryEnd: number) => {
+      switch (usageChartZoom) {
+        case "daily":
+          return queryEnd - 24 * 60 * 60 * 1000;
+        case "weekly":
+          return queryEnd - 7 * 24 * 60 * 60 * 1000;
+        case "monthly":
+          return queryEnd - 30 * 24 * 60 * 60 * 1000;
+        case "yearly":
+          return queryEnd - 365 * 24 * 60 * 60 * 1000;
+        default:
+          return queryEnd;
+      }
+    };
+
+    const fetchData = async () => {
+      const res = await getTunnelUsage(
+        null,
+        new Date(getQueryStart(dateNow)),
+        new Date(dateNow),
+        getResolution(usageChartZoom),
+      );
+      if (typeof res === "number") {
+        toast.error(`An error has occurred. Error code: ${res}`);
+      } else {
+        setUsageChartData(handleUsageChartDataPoints(res, usageChartZoom));
+      }
+    };
+
+    const updateChartTimer = async () => {
+      if (new Date().getMinutes() % 10 === 0) {
+        await fetchData();
+      }
+    };
+
+    void fetchData();
+
+    const intervalID = setInterval(updateChartTimer, 60 * 1000);
+    return () => clearInterval(intervalID);
+  }, [usageChartZoom]);
 
   return (
     <div className="grid gird-cols-1 md:grid-cols-2 gap-4 text-foreground">
@@ -120,6 +207,42 @@ export const Dashboard = () => {
           <p>{`Process CPU usage: ${systemStatus.process_cpu_usage !== null ? systemStatus.process_cpu_usage.toFixed(1) : "N/A"}`}</p>
           <p>{`Process memory usage (RSS): ${systemStatus.process_memory !== null ? formatBytes(systemStatus.process_memory) : "N/A"}`}</p>
           <p>{`Process file descriptor count: ${systemStatus.process_fd_count !== null ? systemStatus.process_fd_count : "N/A"}`}</p>
+        </CardContent>
+      </Card>
+      <Card className={"col-span-1 md:col-span-2"}>
+        <CardHeader>
+          <CardTitle>Tunnel Usage</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-1">
+          <Select
+            defaultValue={"daily"}
+            onValueChange={(value) => {
+              setUsageChartZoom(value);
+            }}
+          >
+            <SelectTrigger className="mb-2 w-45 self-end">
+              <SelectValue placeholder="Zoom" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {usageChartZoomSelectItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <div className="grid grid-cols-1 md:grid-cols-2">
+            <div className="px-4">
+              <p className="font-semibold">Tunnelled IO</p>
+              <TunnelUsageIOChart chartData={usageChartData} />
+            </div>
+            <div className="px-4">
+              <p className="font-semibold">Connections</p>
+              <TunnelUsageConnectionsChart chartData={usageChartData} />
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
