@@ -100,16 +100,6 @@ pub async fn api_control(
     });
 
     let with_access_update = Router::new()
-        // .route("/api/tunnel/access/whitelist", post(add_whitelist))
-        // .route(
-        //     "/api/tunnel/access/whitelist/{id}",
-        //     delete(remove_whitelist),
-        // )
-        // .route("/api/tunnel/access/blacklist", post(add_blacklist))
-        // .route(
-        //     "/api/tunnel/access/blacklist/{id}",
-        //     delete(remove_blacklist),
-        // )
         .route("/api/tunnel/settings", put(set_settings))
         .layer(middleware::from_fn_with_state(
             state.clone(),

@@ -34,7 +34,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.tsx";
-import { Menu, RefreshCw } from "lucide-react";
+import { ChartSpline, Menu, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 import {
   Dialog,
@@ -43,8 +43,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog.tsx";
 import { RotateToken } from "@/components/subpages/rotate-token.tsx";
+import { useNavigate } from "react-router";
+import { paths } from "@/config/paths.ts";
 
 export const Users = () => {
+  const navigate = useNavigate();
+
   const [users, setUsers] = useState<
     | {
         id: string;
@@ -121,6 +125,15 @@ export const Users = () => {
                     </TableCell>
                     <TableCell className="sticky right-0 z-10 bg-background transition-colors group-hover:bg-muted/50">
                       <div className="flex flex-row gap-1 justify-end">
+                        <Button
+                          variant={"outline"}
+                          onClick={() => {
+                            navigate(paths.root.users.usage.getHref(item.id));
+                          }}
+                          className="mx-1"
+                        >
+                          <ChartSpline />
+                        </Button>
                         <EditUser
                           onClose={triggerUsersUpdate}
                           user={{

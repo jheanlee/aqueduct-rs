@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/chart.tsx";
 import { Line, LineChart, XAxis } from "recharts";
 import { type UsageDataPoint } from "@/services/tunnel/usage.ts";
+import { formatBytes } from "@/lib/format.ts";
 
 export const handleUsageChartDataPoints = (
   data: UsageDataPoint[],
@@ -41,16 +42,6 @@ export const handleUsageChartDataPoints = (
       case "yearly":
         return `${pad(timestamp.getUTCMonth())}/${pad(timestamp.getUTCDate())}`;
     }
-  };
-
-  const formatBytes = (bytes: number) => {
-    if (bytes <= 0) return "0 B";
-
-    const units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
-
-    const index = Math.floor(Math.log(bytes) / Math.log(1024));
-
-    return `${parseFloat((bytes / Math.pow(1024, index)).toFixed(1))} ${units[index]}`;
   };
 
   return data.map((value) => {
