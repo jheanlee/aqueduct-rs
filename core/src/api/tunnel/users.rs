@@ -96,25 +96,6 @@ pub async fn delete_tunnel_user(
 }
 
 #[derive(Deserialize)]
-pub struct GetTunnelUsageByUserPath {
-    pub id: String,
-}
-pub async fn get_tunnel_usage_by_user(
-    State(api_state): State<Arc<ApiState>>,
-    Path(path): Path<GetTunnelUsageByUserPath>,
-) -> Result<Response<Body>, Error> {
-    let data = crate::orm::usage_data::get_tunnel_user_data(
-        api_state.shared.db_connection.clone(),
-        path.id.as_str(),
-    )
-    .await?;
-    let response_builder =
-        Response::builder().header(http::header::CONTENT_TYPE, "application/json");
-    let response_body = Body::from(to_string(&data)?);
-    Ok(response_builder.body(response_body)?)
-}
-
-#[derive(Deserialize)]
 pub struct RotateTokenPath {
     pub id: String,
 }

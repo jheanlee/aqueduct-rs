@@ -14,46 +14,155 @@
  * limitations under the License.
  */
 use crate::orm::error::Error;
-use entity::entities::{tunnel_sessions, tunnel_users};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait};
+use chrono::{DateTime, Duration, NaiveDateTime};
+use sea_orm::{DatabaseBackend, DatabaseConnection, FromQueryResult, Statement};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
-pub struct TunnelUserData {
-    pub id: String,
-    pub username: String,
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TimestampBucketSize {
+    TenMinutes,
+    Hourly,
+    Daily,
+    Weekly,
+}
+
+#[derive(Debug, FromQueryResult, Serialize, Deserialize)]
+pub struct TunnelUsagePoint {
+    pub bucket: NaiveDateTime,
     pub inbound: i64,
     pub outbound: i64,
     pub external_connection_count: i64,
 }
 
-pub async fn get_tunnel_user_data(
+pub async fn get_tunnel_usage_data(
     db_connection: DatabaseConnection,
-    id: &str,
-) -> Result<TunnelUserData, Error> {
-    let user = tunnel_users::Entity::find_by_id(id)
-        .one(&db_connection)
-        .await?
-        .ok_or(Error::NotFound)?;
-    let sessions = tunnel_sessions::Entity::find()
-        .has_related(tunnel_users::Entity, tunnel_users::Column::Id.eq(id))
+    user_id: Option<String>,
+    timestamp_bucket_size: TimestampBucketSize,
+    query_start: NaiveDateTime,
+    query_end: NaiveDateTime,
+) -> Result<Vec<TunnelUsagePoint>, Error> {
+    //  bucket size handling
+    let bucket_size_str = match timestamp_bucket_size {
+        TimestampBucketSize::TenMinutes => "10 minutes",
+        TimestampBucketSize::Hourly => "1 hour",
+        TimestampBucketSize::Daily => "1 day",
+        TimestampBucketSize::Weekly => "7 days",
+    };
+
+    let bucket_size_duration = match timestamp_bucket_size {
+        TimestampBucketSize::TenMinutes => Duration::minutes(10),
+        TimestampBucketSize::Hourly => Duration::hours(1),
+        TimestampBucketSize::Daily => Duration::days(1),
+        TimestampBucketSize::Weekly => Duration::days(7),
+    };
+
+    let trunc_size = match timestamp_bucket_size {
+        TimestampBucketSize::TenMinutes => "minute",
+        TimestampBucketSize::Hourly => "hour",
+        TimestampBucketSize::Daily => "day",
+        TimestampBucketSize::Weekly => "week",
+    };
+
+    //  round query timestamps
+    //  start time rounded up
+    let rounded_query_start_seconds =
+        (query_start.and_utc() + bucket_size_duration - Duration::seconds(1)).timestamp()
+            / (bucket_size_duration.as_seconds_f64() as i64)
+            * (bucket_size_duration.as_seconds_f64() as i64);
+    let rounded_query_start = DateTime::from_timestamp_secs(rounded_query_start_seconds)
+        .ok_or(Error::BadRequest)?
+        .naive_utc();
+
+    //  end time rounded down
+    let rounded_query_end_seconds = query_end.and_utc().timestamp()
+        / (bucket_size_duration.as_seconds_f64() as i64)
+        * (bucket_size_duration.as_seconds_f64() as i64);
+    let rounded_query_end = DateTime::from_timestamp_secs(rounded_query_end_seconds)
+        .ok_or(Error::BadRequest)?
+        .naive_utc();
+
+    //  db operation
+    const STATEMENT_BY_USER: &str = "WITH buckets AS (
+    SELECT generate_series(
+            date_trunc($4, $2::timestamp),
+            date_trunc($4, $3::timestamp),
+            $5::interval
+        ) AS bucket
+),
+usage AS (
+    SELECT
+        date_trunc($4, bucket_start) AS bucket,
+        sum(inbound)::bigint AS inbound,
+        sum(outbound)::bigint AS outbound,
+        sum(external_connection_count)::bigint AS external_connection_count
+    FROM tunnel_sessions
+    WHERE user_id = $1
+        AND bucket_start >= $2
+        AND bucket_start <= $3
+    GROUP BY bucket
+)
+SELECT buckets.bucket,
+       coalesce(usage.inbound, 0) AS inbound,
+       coalesce(usage.outbound, 0) AS outbound,
+       coalesce(usage.external_connection_count, 0) AS external_connection_count
+FROM buckets
+LEFT JOIN usage USING (bucket)
+ORDER BY buckets.bucket;";
+    const STATEMENT_OVERALL: &str = "WITH buckets AS (
+    SELECT generate_series(
+            date_trunc($3, $1::timestamp),
+            date_trunc($3, $2::timestamp),
+            $4::interval
+        ) AS bucket
+),
+usage AS (
+    SELECT
+        date_trunc($3, bucket_start) AS bucket,
+        sum(inbound)::bigint AS inbound,
+        sum(outbound)::bigint AS outbound,
+        sum(external_connection_count)::bigint AS external_connection_count
+    FROM tunnel_sessions
+    WHERE bucket_start >= $1
+        AND bucket_start <= $2
+    GROUP BY bucket
+)
+SELECT buckets.bucket,
+       coalesce(usage.inbound, 0) AS inbound,
+       coalesce(usage.outbound, 0) AS outbound,
+       coalesce(usage.external_connection_count, 0) AS external_connection_count
+FROM buckets
+LEFT JOIN usage USING (bucket)
+ORDER BY buckets.bucket;";
+
+    if let Some(user_id) = user_id {
+        let res = TunnelUsagePoint::find_by_statement(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            STATEMENT_BY_USER,
+            vec![
+                user_id.into(),
+                rounded_query_start.into(),
+                rounded_query_end.into(),
+                trunc_size.into(),
+                bucket_size_str.into(),
+            ],
+        ))
         .all(&db_connection)
         .await?;
-
-    let mut inbound_usage = 0i64;
-    let mut outbound_usage = 0i64;
-    let mut external_connection_count = 0i64;
-    for model in sessions {
-        inbound_usage += model.inbound;
-        outbound_usage += model.outbound;
-        external_connection_count += model.external_connection_count;
+        Ok(res)
+    } else {
+        let res = TunnelUsagePoint::find_by_statement(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            STATEMENT_OVERALL,
+            vec![
+                rounded_query_start.into(),
+                rounded_query_end.into(),
+                trunc_size.into(),
+                bucket_size_str.into(),
+            ],
+        ))
+        .all(&db_connection)
+        .await?;
+        Ok(res)
     }
-
-    Ok(TunnelUserData {
-        id: user.id,
-        username: user.username,
-        inbound: inbound_usage,
-        outbound: outbound_usage,
-        external_connection_count,
-    })
 }

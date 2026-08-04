@@ -14,23 +14,23 @@
  * limitations under the License.
  */
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card.tsx";
+import { useNavigate, useParams } from "react-router";
 import { useEffect, useState } from "react";
-import { get_system_status, get_tunnel_status } from "@/services/status.ts";
+import { paths } from "@/config/paths.ts";
+import { getTunnelUsage } from "@/services/tunnel/usage.ts";
+import { toast } from "sonner";
 import {
   handleUsageChartDataPoints,
   TunnelUsageConnectionsChart,
   TunnelUsageIOChart,
   type UsageDataPointFormatted,
 } from "@/components/charts/tunnel-usage.tsx";
-import { getTunnelUsage } from "@/services/tunnel/usage.ts";
-import { toast } from "sonner";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card.tsx";
 import {
   Select,
   SelectContent,
@@ -39,33 +39,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.tsx";
-import { formatBytes, formatTimeFromSeconds } from "@/lib/format.ts";
 
-export const Dashboard = () => {
-  const [systemStatus, setSystemStatus] = useState<{
-    cpu_usage: number | null;
-    used_memory: number | null;
-    total_memory: number | null;
-    process_cpu_usage: number | null;
-    process_memory: number | null;
-    process_fd_count: number | null;
-  }>({
-    cpu_usage: null,
-    used_memory: null,
-    total_memory: null,
-    process_cpu_usage: null,
-    process_memory: null,
-    process_fd_count: null,
-  });
-  const [tunnelStatus, setTunnelStatus] = useState<{
-    uptime: number | null;
-    active_service_count: number | null;
-    active_external_connection_count: number | null;
-  }>({
-    uptime: null,
-    active_service_count: null,
-    active_external_connection_count: null,
-  });
+export const UserUsage = () => {
+  const navigate = useNavigate();
+  const params = useParams();
 
   const [usageChartData, setUsageChartData] = useState<
     UsageDataPointFormatted[]
@@ -80,20 +57,9 @@ export const Dashboard = () => {
   ];
 
   useEffect(() => {
-    const fetchData = async () => {
-      const [tunnel, system] = await Promise.all([
-        get_tunnel_status(),
-        get_system_status(),
-      ]);
-      setTunnelStatus(tunnel);
-      setSystemStatus(system);
-    };
-
-    void fetchData();
-
-    const intervalID = setInterval(fetchData, 10000);
-
-    return () => clearInterval(intervalID);
+    if (params.id === undefined) {
+      navigate(paths.root.notFound.getHref());
+    }
   }, []);
 
   useEffect(() => {
@@ -130,8 +96,9 @@ export const Dashboard = () => {
     };
 
     const fetchData = async () => {
+      if (params.id === undefined) return;
       const res = await getTunnelUsage(
-        null,
+        params.id,
         new Date(getQueryStart(dateNow)),
         new Date(dateNow),
         getResolution(usageChartZoom),
@@ -157,33 +124,6 @@ export const Dashboard = () => {
 
   return (
     <div className="grid gird-cols-1 md:grid-cols-2 gap-4 text-foreground">
-      <Card>
-        <CardHeader>
-          <CardTitle>Tunnel Service Status</CardTitle>
-          <CardDescription>Update interval: 10s</CardDescription>
-        </CardHeader>
-
-        <CardContent className="flex flex-col gap-1">
-          <p>{`Uptime: ${tunnelStatus.uptime !== null ? formatTimeFromSeconds(tunnelStatus.uptime) : "N/A"}`}</p>
-          <p>{`Active service count: ${tunnelStatus.active_service_count !== null ? tunnelStatus.active_service_count : "N/A"}`}</p>
-          <p>{`Active external connection count: ${tunnelStatus.active_external_connection_count !== null ? tunnelStatus.active_external_connection_count : "N/A"}`}</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>System Status</CardTitle>
-          <CardDescription>
-            Update interval: 10s (60 s for file descriptor)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-1">
-          <p>{`Global CPU usage: ${systemStatus.cpu_usage !== null ? systemStatus.cpu_usage.toFixed(1) : "N/A"}`}</p>
-          <p>{`Global memory usage: ${systemStatus.used_memory !== null ? formatBytes(systemStatus.used_memory) : "N/A "}/${systemStatus.total_memory !== null ? formatBytes(systemStatus.total_memory) : " N/A"}`}</p>
-          <p>{`Process CPU usage: ${systemStatus.process_cpu_usage !== null ? systemStatus.process_cpu_usage.toFixed(1) : "N/A"}`}</p>
-          <p>{`Process memory usage (RSS): ${systemStatus.process_memory !== null ? formatBytes(systemStatus.process_memory) : "N/A"}`}</p>
-          <p>{`Process file descriptor count: ${systemStatus.process_fd_count !== null ? systemStatus.process_fd_count : "N/A"}`}</p>
-        </CardContent>
-      </Card>
       <Card className={"col-span-1 md:col-span-2"}>
         <CardHeader>
           <CardTitle>Tunnel Usage</CardTitle>

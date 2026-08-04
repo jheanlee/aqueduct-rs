@@ -33,6 +33,12 @@ export const paths = {
       path: "users",
       getHref: () => "/users",
       title: "Tunnel Users",
+
+      usage: {
+        path: ":id/usage",
+        getHref: (id: string) => `/users/${id}/usage`,
+        title: "Tunnel Usage (User)",
+      },
     },
     settings: {
       path: "settings",

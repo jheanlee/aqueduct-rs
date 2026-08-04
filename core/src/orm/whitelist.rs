@@ -82,17 +82,6 @@ async fn add_whitelist(
     }
 }
 
-// pub async fn delete_whitelist(db_connection: DatabaseConnection, id: i32) -> Result<(), Error> {
-//     Entity::find_by_id(id)
-//         .one(&db_connection)
-//         .await?
-//         .ok_or(Error::NotFound)?
-//         .into_active_model()
-//         .delete(&db_connection)
-//         .await?;
-//     Ok(())
-// }
-
 pub async fn set_whitelist(
     db_connection: DatabaseConnection,
     whitelist: Vec<IpNetwork>,

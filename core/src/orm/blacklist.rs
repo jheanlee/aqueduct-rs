@@ -82,17 +82,6 @@ async fn add_blacklist(
     }
 }
 
-// pub async fn delete_blacklist(db_connection: DatabaseConnection, id: i32) -> Result<(), Error> {
-//     Entity::find_by_id(id)
-//         .one(&db_connection)
-//         .await?
-//         .ok_or(Error::NotFound)?
-//         .into_active_model()
-//         .delete(&db_connection)
-//         .await?;
-//     Ok(())
-// }
-
 pub async fn set_blacklist(
     db_connection: DatabaseConnection,
     blacklist: Vec<IpNetwork>,
