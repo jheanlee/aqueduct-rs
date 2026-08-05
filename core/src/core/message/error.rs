@@ -13,24 +13,54 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+use std::fmt::Formatter;
 
 #[derive(Debug, Copy, Clone)]
-pub enum MessageError {
-    MessageEmpty,
-    MessageTooLong,
+pub enum MessageParseError {
+    InvalidLength,
+    InvalidVersion,
     InvalidType,
     InvalidString,
 }
 
-impl std::fmt::Display for MessageError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+#[derive(Debug, Copy, Clone)]
+pub enum MessageBuildError {
+    InvalidVersion,
+    InvalidStringLength,
+}
+
+impl std::fmt::Display for MessageParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            MessageError::MessageEmpty => write!(f, "message cannot be empty"),
-            MessageError::MessageTooLong => write!(f, "message length exceeded limit"),
-            MessageError::InvalidType => write!(f, "invalid message type"),
-            MessageError::InvalidString => write!(f, "invalid message string"),
+            MessageParseError::InvalidLength => {
+                write!(f, "invalid length")
+            }
+            MessageParseError::InvalidVersion => {
+                write!(f, "invalid version")
+            }
+            MessageParseError::InvalidType => {
+                write!(f, "invalid type")
+            }
+            MessageParseError::InvalidString => {
+                write!(f, "invalid string")
+            }
         }
     }
 }
 
-impl std::error::Error for MessageError {}
+impl std::error::Error for MessageParseError {}
+
+impl std::fmt::Display for MessageBuildError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MessageBuildError::InvalidVersion => {
+                write!(f, "invalid version")
+            }
+            MessageBuildError::InvalidStringLength => {
+                write!(f, "invalid string")
+            }
+        }
+    }
+}
+
+impl std::error::Error for MessageBuildError {}

@@ -13,36 +13,46 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+use crate::core::message::common::MessageBuilder;
 use crate::core::message::message::{Message, MessageType};
-use crate::core::socket::io::send_message;
 use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::model::Flags;
-use tokio::io::WriteHalf;
+use futures::SinkExt;
+use futures::stream::SplitSink;
 use tokio::net::TcpStream;
 use tokio::select;
 use tokio::sync::mpsc;
 use tokio_rustls::server::TlsStream;
+use tokio_util::bytes::{Bytes, BytesMut};
+use tokio_util::codec::{Framed, LengthDelimitedCodec};
+use tokio_util::future::FutureExt;
 use tracing::warn;
 
 #[derive(Clone)]
 pub struct ControlMessageSenderClient {
     control_message_handler_tx: mpsc::Sender<Message>,
+    message_version: u8,
 }
 
 impl ControlMessageSenderClient {
-    pub fn new(tx: mpsc::Sender<Message>) -> Self {
+    pub fn new(tx: mpsc::Sender<Message>, message_version: u8) -> Self {
         ControlMessageSenderClient {
             control_message_handler_tx: tx,
+            message_version,
         }
     }
 
     pub async fn send_message(
         &self,
         message_type: MessageType,
-        message_string: String,
+        message_payload: &str,
     ) -> Result<(), TunnelError> {
         self.control_message_handler_tx
-            .send(Message::new(message_type, message_string))
+            .send(Message::new(
+                self.message_version,
+                message_type,
+                message_payload,
+            ))
             .await?;
         Ok(())
     }
@@ -51,30 +61,35 @@ impl ControlMessageSenderClient {
 pub async fn tunnel_control_message_sender(
     flags: Flags,
     mut control_rx: mpsc::Receiver<Message>,
-    mut tunnel_client_tx: WriteHalf<TlsStream<TcpStream>>,
+    mut tunnel_client_tx: SplitSink<Framed<TlsStream<TcpStream>, LengthDelimitedCodec>, Bytes>,
 ) {
-    loop {
-        select! {
-            biased;
-            _ = flags.local_cancellation_token.cancelled() => { break; },
-            received_request = control_rx.recv() => {
-                let Some(message) = received_request else {
-                    flags.local_cancellation_token.cancel();
-                    break;
-                };
+    let mut write_buffer = BytesMut::with_capacity(256);
 
-                select! {
-                    biased;
-                    _ = flags.local_cancellation_token.cancelled() => { break; },
-                    write_result = send_message(&mut tunnel_client_tx, &message) => {
-                        if let Err(error) = write_result {
-                            warn!("Unable to send message to client: {:?}", error);
-                            flags.local_cancellation_token.cancel();
-                            break;
-                        }
-                    }
-                }
+    while let Some(message) = select! {
+        biased;
+        _ = flags.local_cancellation_token.cancelled() => None,
+        message = control_rx.recv() => message
+    } {
+        if let Err(error) = MessageBuilder::encode(&message, &mut write_buffer) {
+            warn!("Unable to encode message: {:?}", error);
+            continue;
+        }
+
+        match tunnel_client_tx
+            .send(write_buffer.split().freeze())
+            .with_cancellation_token_owned(flags.local_cancellation_token.clone())
+            .await
+        {
+            Some(Ok(_)) => {}
+            Some(Err(error)) => {
+                warn!("Unable to send message to client: {:?}", error);
+                break;
+            }
+            None => {
+                break;
             }
         }
     }
+
+    flags.local_cancellation_token.cancel();
 }
