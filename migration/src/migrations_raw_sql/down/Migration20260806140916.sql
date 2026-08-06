@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-import { Migration } from "@mikro-orm/migrations";
+alter table "tunnel_sessions"
+    drop constraint "tunnel_sessions_user_id_foreign";
 
-export class Migration20260429160400 extends Migration {
-  override async up(): Promise<void> {
-    this.addSql(
-      `insert into "settings" ("key", "value") values ('blacklist', 'true') on conflict do nothing;`,
-    );
-    this.addSql(
-      `insert into "settings" ("key", "value") values ('whitelist', 'false') on conflict do nothing;`,
-    );
-  }
+drop table if exists "ip_blacklist" cascade;
 
-  override async down(): Promise<void> {}
-}
+drop table if exists "ip_whitelist" cascade;
+
+drop table if exists "settings" cascade;
+
+drop table if exists "tunnel_users" cascade;
+
+drop table if exists "tunnel_sessions" cascade;
