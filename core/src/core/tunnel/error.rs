@@ -13,14 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use crate::core::message::error::MessageError;
+use crate::core::message::error::MessageParseError;
 use crate::core::message::message::Message;
 use tokio::sync::mpsc;
 
 #[derive(Debug)]
 pub enum TunnelError {
     MpscMessageSendError(mpsc::error::SendError<Message>),
-    MessageError(MessageError),
+    MessageParseError(MessageParseError),
     IoError(std::io::Error),
     NoPortsAvailable,
     HmacInvalidLengthError(hmac::digest::InvalidLength),
@@ -30,37 +30,21 @@ pub enum TunnelError {
 impl std::fmt::Display for TunnelError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::MessageError(e) => write!(f, "MessageError: {e}"),
             Self::IoError(e) => write!(f, "IoError: {e}"),
             Self::NoPortsAvailable => write!(f, "no ports available"),
             Self::MpscMessageSendError(e) => write!(f, "MpscSendError: {e}"),
             Self::HmacInvalidLengthError(e) => write!(f, "HmacError: {e}"),
             Self::ClientClosed => write!(f, "Client closed"),
+            Self::MessageParseError(e) => write!(f, "MessageParseError: {e}"),
         }
     }
 }
 
 impl std::error::Error for TunnelError {}
 
-impl From<MessageError> for TunnelError {
-    fn from(error: MessageError) -> Self {
-        Self::MessageError(error)
-    }
-}
-
 impl From<std::io::Error> for TunnelError {
     fn from(error: std::io::Error) -> Self {
         Self::IoError(error)
-    }
-}
-
-impl From<crate::core::socket::io::Error> for TunnelError {
-    fn from(error: crate::core::socket::io::Error) -> Self {
-        match error {
-            crate::core::socket::io::Error::MessageError(error) => Self::MessageError(error),
-            crate::core::socket::io::Error::IoError(error) => Self::IoError(error),
-            crate::core::socket::io::Error::ClientClosed => Self::ClientClosed,
-        }
     }
 }
 
@@ -73,5 +57,11 @@ impl From<mpsc::error::SendError<Message>> for TunnelError {
 impl From<hmac::digest::InvalidLength> for TunnelError {
     fn from(error: hmac::digest::InvalidLength) -> Self {
         Self::HmacInvalidLengthError(error)
+    }
+}
+
+impl From<MessageParseError> for TunnelError {
+    fn from(error: MessageParseError) -> Self {
+        Self::MessageParseError(error)
     }
 }

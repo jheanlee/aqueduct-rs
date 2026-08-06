@@ -13,12 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use crate::core::message::error::MessageError;
+use crate::core::message::error::{MessageBuildError, MessageParseError};
 use crate::core::tunnel::error::TunnelError;
 
 #[derive(Debug)]
 pub enum Error {
-    MessageError(MessageError),
+    MessageBuildError(MessageBuildError),
+    MessageParseError(MessageParseError),
     TunnelError(TunnelError),
     AcquireError(tokio::sync::AcquireError),
     Argon2HashError(argon2::password_hash::Error),
@@ -28,7 +29,8 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::MessageError(e) => write!(f, "MessageError: {e}"),
+            Error::MessageBuildError(e) => write!(f, "MessageBuildError: {e}"),
+            Error::MessageParseError(e) => write!(f, "MessageParseError: {e}"),
             Error::TunnelError(e) => write!(f, "TunnelError: {e}"),
             Error::AcquireError(e) => write!(f, "AcquireError: {e}"),
             Error::Argon2HashError(e) => write!(f, "Argon2HashError: {e}"),
@@ -45,9 +47,15 @@ impl From<TunnelError> for Error {
     }
 }
 
-impl From<MessageError> for Error {
-    fn from(error: MessageError) -> Self {
-        Self::MessageError(error)
+impl From<MessageBuildError> for Error {
+    fn from(error: MessageBuildError) -> Self {
+        Self::MessageBuildError(error)
+    }
+}
+
+impl From<MessageParseError> for Error {
+    fn from(error: MessageParseError) -> Self {
+        Self::MessageParseError(error)
     }
 }
 

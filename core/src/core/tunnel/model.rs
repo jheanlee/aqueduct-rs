@@ -17,7 +17,6 @@
 use dashmap::DashMap;
 use std::collections::VecDeque;
 use std::net::SocketAddr;
-use tokio::io::{ReadHalf, WriteHalf};
 use tokio::net::{TcpStream, tcp};
 use tokio::sync::{OwnedSemaphorePermit, RwLock};
 use tokio::time;
@@ -35,8 +34,7 @@ pub struct Flags {
 }
 
 pub struct TunnelClient {
-    pub stream_tx: WriteHalf<TlsStream<TcpStream>>,
-    pub stream_rx: ReadHalf<TlsStream<TcpStream>>,
+    pub stream: TlsStream<TcpStream>,
     pub addr: SocketAddr,
 }
 

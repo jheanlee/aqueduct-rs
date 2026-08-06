@@ -36,10 +36,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
 use tokio::net::TcpListener;
-use tokio::select;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio::time::{Instant, sleep_until};
+use tokio::{io, select};
 use tokio_util::future::FutureExt;
 use tracing::{debug, info, instrument, warn};
 
@@ -89,7 +89,7 @@ pub async fn tunnel_client_proxy_control(
     let Some(tcp_listener) = tcp_listener else {
         warn!("No available ports");
         let _ = control_message_sender_client
-            .send_message(MessageType::Error, "no ports available".to_string())
+            .send_message(MessageType::Error, "no ports available")
             .await;
         flags.local_cancellation_token.cancel();
         Err(NoPortsAvailable)?
@@ -104,7 +104,8 @@ pub async fn tunnel_client_proxy_control(
                 port,
                 secret: BASE64_STANDARD.encode(client_secret),
             })
-            .unwrap_or_else(|_| unreachable!()),
+            .unwrap_or_else(|_| unreachable!())
+            .as_str(),
         )
         .await
         .is_err()
@@ -184,7 +185,7 @@ pub async fn tunnel_client_proxy_control(
                             );
 
                             //  notify client of the new user
-                            if control_message_sender_client_clone.send_message(MessageType::Proxy, id.clone()).await.is_err() {
+                            if control_message_sender_client_clone.send_message(MessageType::Proxy, id.as_str()).await.is_err() {
                                 //  proxy clients are cleaned up by a cleaner thread if not claimed by users
                                 local_cancellation_token_clone.cancel();
                             }
@@ -232,11 +233,9 @@ pub async fn tunnel_client_proxy(
     const COUNTER_UPDATE_INTERVAL: u64 = 300;
     let mut next_deadline = Instant::now() + Duration::from_secs(COUNTER_UPDATE_INTERVAL);
 
-    let mut tunnel_client_io = ProxyIO::new(
-        tunnel_client.stream_rx,
-        tunnel_client.stream_tx,
-        inbound.clone(),
-    );
+    let (tunnel_client_rx, tunnel_client_tx) = io::split(tunnel_client.stream);
+
+    let mut tunnel_client_io = ProxyIO::new(tunnel_client_rx, tunnel_client_tx, inbound.clone());
     let mut external_client_io = ProxyIO::new(
         proxy_client.external_client_stream_rx,
         proxy_client.external_client_stream_tx,
