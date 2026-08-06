@@ -125,7 +125,7 @@ pub async fn tunnel_client_control(
                     },
                     MessageType::Service => {
                         //  check if client is already a service connection
-                        if client_guard(client_type, flags.clone(), control_message_sender_client.clone()).await.is_err() {
+                        if client_guard(&client_type, flags.clone(), control_message_sender_client.clone()).await.is_err() {
                             break;
                         }
 
@@ -216,7 +216,7 @@ pub async fn tunnel_client_control(
                     }
                     MessageType::Proxy => {
                         //  check if client is already a service connection
-                        if client_guard(client_type, flags.clone(), control_message_sender_client.clone()).await.is_err() {
+                        if client_guard(&client_type, flags.clone(), control_message_sender_client.clone()).await.is_err() {
                             break;
                         }
 
@@ -315,6 +315,15 @@ pub async fn tunnel_client_control(
     }
 
     //  cleanup
+    match client_type {
+        Some(ClientType::Service) => {
+            let _ = control_message_sender_client
+                .send_message(MessageType::Close, "")
+                .await;
+        }
+        _ => {}
+    }
+
     drop(control_message_sender_client);
 
     if let Some(task) = tunnel_client_heartbeat_task {
@@ -394,7 +403,7 @@ pub async fn tunnel_client_heartbeat(
 }
 
 async fn client_guard(
-    client_type: Option<ClientType>,
+    client_type: &Option<ClientType>,
     flags: Flags,
     control_message_sender_client: ControlMessageSenderClient,
 ) -> Result<(), ()> {
