@@ -38,7 +38,7 @@ export class TunnelUsers {
   label!: string[];
 
   @Property({ type: "timestamp" })
-  lastLogin!: Date;
+  lastLogin!: string;
 
   @Property()
   administrator!: boolean;
