@@ -42,7 +42,7 @@ export class TunnelSessions {
   user!: TunnelUsers | null;
 
   @Property({ type: "timestamp" })
-  bucketStart!: Date;
+  bucketStart!: string;
 
   //  ip address
   @Property({ type: "inet" })
