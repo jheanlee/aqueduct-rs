@@ -109,7 +109,7 @@ pub async fn tunnel_client_control(
                 let Ok(message) = result else {
                     match client_type {
                         Some(ClientType::Service) => {
-                            handle_bad_request_handler(flags.clone(), control_message_sender_client).await;
+                            handle_bad_request_handler(flags.clone(), control_message_sender_client.clone()).await;
                         }
                         //  ClientType::Proxy impossible because the Proxy branch breaks out of the loop
                         None => {
@@ -154,7 +154,7 @@ pub async fn tunnel_client_control(
                         };
 
                         let Ok(service_message) = serde_json::from_str::<ServiceMessage>(payload_str) else {
-                            handle_bad_request_handler(flags.clone(), control_message_sender_client).await;
+                            handle_bad_request_handler(flags.clone(), control_message_sender_client.clone()).await;
                             break;
                         };
 
@@ -216,7 +216,7 @@ pub async fn tunnel_client_control(
                     }
                     MessageType::Proxy => {
                         //  check if client is already a service connection
-                        if client_guard(client_type, flags.clone(), control_message_sender_client).await.is_err() {
+                        if client_guard(client_type, flags.clone(), control_message_sender_client.clone()).await.is_err() {
                             break;
                         }
 
@@ -314,11 +314,14 @@ pub async fn tunnel_client_control(
         }
     }
 
-    if let Some(task) = tunnel_client_proxy_task {
+    //  cleanup
+    drop(control_message_sender_client);
+
+    if let Some(task) = tunnel_client_heartbeat_task {
         let _ = task.await;
     }
 
-    if let Some(task) = tunnel_client_heartbeat_task {
+    if let Some(task) = tunnel_client_proxy_task {
         let _ = task.await;
     }
 
@@ -333,14 +336,11 @@ pub async fn tunnel_client_control(
     if let (Some(tunnel_client_writer), Some(tunnel_client_reader)) =
         (tunnel_client_writer, tunnel_client_reader)
     {
-        let _ = tunnel_client_writer
-            .reunite(tunnel_client_reader)
-            .expect(
-                "`tunnel_client_writer` and `tunnel_client_reader` must be corresponding halves",
-            )
-            .into_inner()
-            .shutdown()
-            .await;
+        let mut framed = tunnel_client_writer.reunite(tunnel_client_reader).expect(
+            "`tunnel_client_writer` and `tunnel_client_reader` must be corresponding halves",
+        );
+        let _ = framed.flush().await;
+        let _ = framed.into_inner().shutdown().await;
     }
 
     info!("Session ended");
@@ -370,11 +370,9 @@ pub async fn tunnel_client_heartbeat(
         //  sleep until next cycle
         match value {
             Some(value) if value => {
-                select! {
-                    biased;
-                    _ = flags.local_cancellation_token.cancelled() => { break; },
-                    _ = tokio::time::sleep(TUNNEL_CLIENT_HEARTBEAT_TIMEOUT) => {},
-                }
+                tokio::time::sleep(TUNNEL_CLIENT_HEARTBEAT_TIMEOUT)
+                    .with_cancellation_token_owned(flags.local_cancellation_token.clone())
+                    .await;
             }
             _ => {
                 break;

@@ -19,9 +19,11 @@ use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::model::Flags;
 use futures::SinkExt;
 use futures::stream::SplitSink;
+use std::time::Duration;
 use tokio::net::TcpStream;
-use tokio::select;
 use tokio::sync::mpsc;
+use tokio::time::timeout;
+use tokio::{join, select};
 use tokio_rustls::server::TlsStream;
 use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
@@ -67,19 +69,35 @@ pub async fn tunnel_control_message_sender(
 
     while let Some(message) = select! {
         biased;
-        _ = flags.local_cancellation_token.cancelled() => None,
-        message = control_rx.recv() => message
+        message = control_rx.recv() => message,
+        _ = flags.local_cancellation_token.cancelled() => None
     } {
         if let Err(error) = MessageBuilder::encode(&message, &mut write_buffer) {
             warn!("Unable to encode message: {:?}", error);
             continue;
         }
 
-        match tunnel_client_tx
-            .send(write_buffer.split().freeze())
-            .with_cancellation_token_owned(flags.local_cancellation_token.clone())
-            .await
-        {
+        let result = match message.message_type {
+            MessageType::Error | MessageType::Close => {
+                match timeout(
+                    Duration::from_millis(200),
+                    tunnel_client_tx.send(write_buffer.split().freeze()),
+                )
+                .await
+                {
+                    Ok(value) => Some(value),
+                    Err(_) => None,
+                }
+            }
+            _ => {
+                tunnel_client_tx
+                    .send(write_buffer.split().freeze())
+                    .with_cancellation_token_owned(flags.local_cancellation_token.clone())
+                    .await
+            }
+        };
+
+        match result {
             Some(Ok(_)) => {}
             Some(Err(error)) => {
                 warn!("Unable to send message to client: {:?}", error);
