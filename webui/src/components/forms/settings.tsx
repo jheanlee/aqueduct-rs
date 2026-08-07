@@ -34,7 +34,7 @@ import { getSettings, setSettings } from "@/services/settings.ts";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
-import { normalizeCidr } from "cidr-tools";
+import { normalizeCidr, overlapCidr } from "cidr-tools";
 
 export const SettingsForm = () => {
   const [submitStatus, setSubmitStatus] = useState(200);
@@ -97,6 +97,27 @@ export const SettingsForm = () => {
       return;
     }
 
+    for (let i = 0; i < whitelist.length; i++) {
+      for (let j = i + 1; j < whitelist.length; j++) {
+        if (overlapCidr(whitelist[i], whitelist[j])) {
+          form.setError("whitelist", {
+            message: `CIDR blocs ${whitelist[i]} and ${whitelist[j]} overlap`,
+          });
+          return;
+        }
+      }
+    }
+    for (let i = 0; i < blacklist.length; i++) {
+      for (let j = i + 1; j < blacklist.length; j++) {
+        if (overlapCidr(blacklist[i], blacklist[j])) {
+          form.setError("blacklist", {
+            message: `CIDR blocs ${blacklist[i]} and ${blacklist[j]} overlap`,
+          });
+          return;
+        }
+      }
+    }
+
     //  request
     const res = await setSettings({
       whitelist_enabled: values.whitelistEnabled,
@@ -105,6 +126,9 @@ export const SettingsForm = () => {
       blacklist,
     });
     setSubmitStatus(res);
+    if (res === 200) {
+      toast.success("Settings updated");
+    }
   };
 
   return (
