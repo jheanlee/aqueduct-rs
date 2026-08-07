@@ -91,6 +91,11 @@ pub async fn tunnel_client_proxy_control(
         let _ = control_message_sender_client
             .send_message(MessageType::Error, "no ports available")
             .await;
+
+        tunnel_info
+            .active_service_count
+            .fetch_sub(1, Ordering::Relaxed);
+
         flags.local_cancellation_token.cancel();
         Err(NoPortsAvailable)?
     };

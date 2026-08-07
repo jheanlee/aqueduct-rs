@@ -17,7 +17,7 @@ use crate::core::message::common::MessageParserVersioned;
 use crate::core::message::error::MessageParseError;
 use crate::core::message::message::Message;
 use crate::core::message::v1::common::{MESSAGE_TYPE_BYTES_V1, MESSAGE_VERSION_V1, MessageTypeV1};
-use axum::body::Bytes;
+use tokio_util::bytes::Bytes;
 
 pub struct MessageParserV1;
 
