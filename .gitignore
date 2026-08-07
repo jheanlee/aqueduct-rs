@@ -4,7 +4,7 @@ bin
 target
 node_modules
 migration/dist
-/migration/src/migrations/.snapshot-aqueduct.json
+/migration/src/migrations/.snapshot-*.json
 /migration/temp
 
 .idea

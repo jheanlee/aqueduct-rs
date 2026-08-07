@@ -14,10 +14,15 @@
  * limitations under the License.
  */
 
+#[cfg(feature = "migration")]
+use clap::ValueEnum;
 use std::net::SocketAddr;
 
 #[derive(clap::Parser)]
 pub struct Args {
+    #[command(subcommand)]
+    pub command: Option<Commands>,
+    #[arg(long)]
     pub host: Option<SocketAddr>,
     #[arg(long)]
     pub tunnel_allowed_ports: Option<String>,
@@ -49,4 +54,23 @@ pub struct Args {
     pub db_username: Option<String>,
     #[arg(long)]
     pub db_password: Option<String>,
+}
+
+#[derive(clap::Subcommand)]
+pub enum Commands {
+    #[cfg(feature = "migration")]
+    Migrate(MigrationArgs),
+}
+
+#[derive(clap::Args)]
+#[cfg(feature = "migration")]
+pub struct MigrationArgs {
+    #[arg(value_enum)]
+    pub mode: MigrationModes,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[cfg(feature = "migration")]
+pub enum MigrationModes {
+    Up,
 }

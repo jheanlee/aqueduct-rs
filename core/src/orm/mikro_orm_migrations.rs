@@ -13,13 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+use crate::orm::error::Error;
+use entity::entities::mikro_orm_migrations::{Column, Entity, Model};
+use sea_orm::{DatabaseConnection, EntityTrait, QueryOrder};
 
-pub mod blacklist;
-pub mod error;
-#[cfg(feature = "migration")]
-pub mod mikro_orm_migrations;
-pub mod settings;
-pub mod tunnel_session;
-pub mod tunnel_user;
-pub mod usage_data;
-pub mod whitelist;
+pub async fn get_latest_migration_record(
+    db_connection: &DatabaseConnection,
+) -> Result<Option<Model>, Error> {
+    Ok(Entity::find()
+        .order_by_desc(Column::Name)
+        .one(db_connection)
+        .await?)
+}

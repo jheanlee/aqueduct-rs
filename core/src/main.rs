@@ -20,12 +20,13 @@ use crate::common::model::Shared;
 use crate::common::signal_handler::signal_handler;
 use crate::common::tunnel_info::TunnelInfo;
 use crate::config::access_handler::update_access_ip_tables;
+use crate::config::args::Commands;
 use crate::config::config_handler::read_config;
 use crate::config::db_config_handler::read_db_config;
 use crate::core::tunnel::control::tunnel_client_control;
 use crate::core::tunnel::model::{Flags, TunnelStatus};
 use crate::core::tunnel::pending_cleaner::pending_client_cleaner;
-use crate::orm::tunnel_session::database_tunnel_session_batch_thread;
+use crate::orm::tunnel_session::database_tunnel_session_batch_task;
 use crate::system_info::system_info::{SystemInfo, system_info_cold, system_info_hot};
 use dashmap::DashMap;
 use ip_network_table::IpNetworkTable;
@@ -47,12 +48,19 @@ use tracing::{Instrument, error, info, info_span, warn};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::util::SubscriberInitExt;
 
+#[cfg(feature = "migration")]
+use crate::config::args::MigrationModes;
+#[cfg(feature = "migration")]
+use crate::migration::migration::migrate;
+
 mod api;
 mod common;
 mod config;
 mod core;
+#[cfg(feature = "migration")]
+mod migration;
 mod orm;
-pub mod system_info;
+mod system_info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
@@ -77,9 +85,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     subscriber.init();
 
     //  signal handler
-    let signal_handler_thread = tokio::spawn(signal_handler(cancellation_token.clone()));
+    let signal_handler_task = tokio::spawn(signal_handler(cancellation_token.clone()));
 
-    //  database
+    //  database connection
     let mut db_connect_options = ConnectOptions::new(format!(
         "postgres://{}:{}@{}:{}/{}",
         config.db_username, config.db_password, config.db_host, config.db_port, config.db_name
@@ -91,6 +99,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
             error!("Unable to connect to the database: {:?}", error);
             exit(1);
         });
+
+    //  subcommands
+    match config.subcommand {
+        #[cfg(feature = "migration")]
+        Some(Commands::Migrate(args)) => match args.mode {
+            MigrationModes::Up => {
+                let result = migrate(db_connection).await;
+                match result {
+                    Ok(_) => exit(0),
+                    Err(_) => exit(1),
+                }
+            }
+        },
+        None => {} // _ => unreachable!(),
+    }
+
+    //  retrieve configuration stored in the database
     let db_config = read_db_config(db_connection.clone())
         .await
         .unwrap_or_else(|error| {
@@ -152,7 +177,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     };
 
     //  pending external client cleaner
-    let pending_cleaner_thread = tokio::spawn(pending_client_cleaner(
+    let pending_cleaner_task = tokio::spawn(pending_client_cleaner(
         cancellation_token.clone(),
         tunnel_status.clone(),
     ));
@@ -168,11 +193,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         process_memory: Default::default(),
         process_fd_count: Default::default(),
     });
-    let system_info_hot_thread = tokio::spawn(system_info_hot(
+    let system_info_hot_task = tokio::spawn(system_info_hot(
         system_info.clone(),
         cancellation_token.clone(),
     ));
-    let system_info_cold_thread = tokio::spawn(system_info_cold(
+    let system_info_cold_task = tokio::spawn(system_info_cold(
         system_info.clone(),
         cancellation_token.clone(),
     ));
@@ -214,7 +239,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
             exit(1);
         }
     };
-    let api_thread = tokio::spawn(api_control(
+    let api_task = tokio::spawn(api_control(
         config.api_host,
         shared.clone(),
         system_info.clone(),
@@ -227,8 +252,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     ));
 
     //  tunnel
-    let mut tunnel_threads = JoinSet::new();
-    let database_tunnel_sessions_batch_thread = tokio::spawn(database_tunnel_session_batch_thread(
+    let mut tunnel_tasks = JoinSet::new();
+    let database_tunnel_sessions_batch_task = tokio::spawn(database_tunnel_session_batch_task(
         shared.db_connection.clone(),
         database_tunnel_session_batch_rx,
         cancellation_token.clone(),
@@ -261,7 +286,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         select! {
             biased;
             _ = cancellation_token.cancelled() => { break; }
-            _ = tunnel_threads.join_next(), if !tunnel_threads.is_empty() => {}
+            _ = tunnel_tasks.join_next(), if !tunnel_tasks.is_empty() => {}
             accept_result = tcp_listener.accept() => {
                 //  accept connection
                 if let Ok((stream, client_addr)) = accept_result {
@@ -297,7 +322,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                     let tunnel_info_clone = tunnel_info.clone();
                     let global_connection_semaphore_clone = global_connection_semaphore.clone();
 
-                    tunnel_threads.spawn(
+                    tunnel_tasks.spawn(
                         async move {
                             match timeout(Duration::from_millis(5000), tls_acceptor_clone.accept(stream)).await {
                                 Ok(Ok(tls_stream)) => {
@@ -332,13 +357,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
 
     cancellation_token.cancel();
     warn!("Exit signal received. Cleaning up");
-    let _ = signal_handler_thread.await;
-    let _ = system_info_hot_thread.await;
-    let _ = system_info_cold_thread.await;
-    let _ = api_thread.await;
-    let _ = database_tunnel_sessions_batch_thread.await;
-    let _ = pending_cleaner_thread.await;
-    tunnel_threads.join_all().await;
+    let _ = signal_handler_task.await;
+    let _ = system_info_hot_task.await;
+    let _ = system_info_cold_task.await;
+    let _ = api_task.await;
+    let _ = database_tunnel_sessions_batch_task.await;
+    let _ = pending_cleaner_task.await;
+    tunnel_tasks.join_all().await;
     warn!("Finished cleaning up");
 
     Ok(())

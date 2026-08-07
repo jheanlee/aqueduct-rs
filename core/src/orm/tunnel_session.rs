@@ -40,7 +40,7 @@ pub enum DatabaseTunnelSessionAction {
 }
 
 #[instrument(skip(database_tunnel_session_batch_rx, cancellation_token))]
-pub async fn database_tunnel_session_batch_thread(
+pub async fn database_tunnel_session_batch_task(
     db_connection: DatabaseConnection,
     mut database_tunnel_session_batch_rx: mpsc::Receiver<DatabaseTunnelSessionAction>,
     cancellation_token: CancellationToken,

@@ -13,13 +13,5 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-pub mod blacklist;
 pub mod error;
-#[cfg(feature = "migration")]
-pub mod mikro_orm_migrations;
-pub mod settings;
-pub mod tunnel_session;
-pub mod tunnel_user;
-pub mod usage_data;
-pub mod whitelist;
+pub mod migration;
