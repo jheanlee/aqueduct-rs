@@ -20,7 +20,6 @@ import { paths } from "@/config/paths.ts";
 import { getTunnelUsage } from "@/services/tunnel/usage.ts";
 import { toast } from "sonner";
 import {
-  handleUsageChartDataPoints,
   TunnelUsageConnectionsChart,
   TunnelUsageIOChart,
   type UsageDataPointFormatted,
@@ -39,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.tsx";
+import { handleUsageChartDataPoints } from "@/components/charts/tunnel-usage-utils.ts";
 
 export const UserUsage = () => {
   const navigate = useNavigate();

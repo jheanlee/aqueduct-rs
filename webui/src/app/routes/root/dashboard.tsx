@@ -24,7 +24,6 @@ import {
 import { useEffect, useState } from "react";
 import { get_system_status, get_tunnel_status } from "@/services/status.ts";
 import {
-  handleUsageChartDataPoints,
   TunnelUsageConnectionsChart,
   TunnelUsageIOChart,
   type UsageDataPointFormatted,
@@ -40,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.tsx";
 import { formatBytes, formatTimeFromSeconds } from "@/lib/format.ts";
+import { handleUsageChartDataPoints } from "@/components/charts/tunnel-usage-utils.ts";
 
 export const Dashboard = () => {
   const [systemStatus, setSystemStatus] = useState<{
