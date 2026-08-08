@@ -15,7 +15,7 @@
  */
 
 pub mod access_handler;
-mod args;
+pub mod args;
 pub mod config_handler;
 pub mod db_config_handler;
 pub mod error;

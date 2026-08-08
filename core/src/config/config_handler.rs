@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use crate::config::args::Args;
+use crate::config::args::{Args, Commands};
 use crate::config::error::ConfigError;
 use clap::Parser;
 use std::collections::VecDeque;
@@ -23,6 +23,8 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 
 pub struct Config {
+    pub subcommand: Option<Commands>,
+
     pub tunnel_host: SocketAddr,
     pub tunnel_allowed_ports: VecDeque<u16>,
     pub tunnel_global_connection_limit: u32,
@@ -51,6 +53,8 @@ pub struct Config {
 ///     3. default value
 pub fn read_config() -> Result<Config, ConfigError> {
     let mut config = Config {
+        subcommand: None,
+
         tunnel_host: SocketAddr::from_str("0.0.0.0:30330")?,
         tunnel_allowed_ports: (51000..=51999).collect(),
         tunnel_global_connection_limit: 10000,
@@ -149,6 +153,7 @@ pub fn read_config() -> Result<Config, ConfigError> {
 
     //  args
     let args = Args::parse();
+    config.subcommand = args.command;
     if let Some(tunnel_host) = args.host {
         config.tunnel_host = tunnel_host;
     }
