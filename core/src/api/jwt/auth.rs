@@ -31,7 +31,7 @@ use serde_json::json;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::Instant;
-use tracing::{info, info_span};
+use tracing::{debug, info, info_span};
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct LoginBody {
@@ -84,7 +84,7 @@ pub async fn login(
     );
 
     let api_span = info_span!("api", user_id = %id);
-    api_span.in_scope(|| info!("Logged in"));
+    api_span.in_scope(|| info!("Api user logged in"));
 
     Ok(response_builder.body(response_body)?)
 }
@@ -140,7 +140,7 @@ pub async fn refresh_token(
     );
 
     let api_span = info_span!("api", user_id = %refresh_token_data.claims.sub);
-    api_span.in_scope(|| info!("Token refreshed"));
+    api_span.in_scope(|| debug!("Api user token refreshed"));
 
     Ok(Response::new(response_body))
 }
@@ -165,7 +165,7 @@ pub async fn logout(
         .retain(|_, value| value.1 != claims.claims.sid);
 
     let api_span = info_span!("api", user_id = %claims.claims.sub);
-    api_span.in_scope(|| info!("Logged out"));
+    api_span.in_scope(|| info!("Api user logged out"));
 
     Ok(StatusCode::OK.into_response())
 }
