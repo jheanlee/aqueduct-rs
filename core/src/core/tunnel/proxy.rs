@@ -247,7 +247,7 @@ pub async fn tunnel_client_proxy(
         outbound.clone(),
     );
 
-    let io_copy = tokio::io::copy_bidirectional_with_sizes(
+    let io_copy = io::copy_bidirectional_with_sizes(
         &mut tunnel_client_io,
         &mut external_client_io,
         BUFFER_SIZE,
