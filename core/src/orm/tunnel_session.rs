@@ -108,7 +108,7 @@ async fn flush_to_database(
 ) {
     if !update_map.is_empty() {
         let table_name = Entity.to_string();
-        let models: Vec<ActiveModel> = update_map.into_iter().map(|(_key, value)| value).collect();
+        let models: Vec<ActiveModel> = update_map.into_values().collect();
 
         let res = Entity::insert_many(models)
             .on_conflict(

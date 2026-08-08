@@ -36,7 +36,6 @@ fn main() {
         println!(
             "cargo:warning=Web UI source files are newer than the build output. Run `cd webui && npm run build`"
         );
-        return;
     }
 }
 
@@ -51,7 +50,7 @@ fn latest_dir_modification(dir: &Path) -> Option<std::time::SystemTime> {
             if entry.path().is_dir() {
                 latest_dir_modification(&entry.path())
             } else {
-                let metadata = fs::metadata(&entry.path()).ok();
+                let metadata = fs::metadata(entry.path()).ok();
                 if let Some(metadata) = metadata {
                     metadata.modified().ok()
                 } else {

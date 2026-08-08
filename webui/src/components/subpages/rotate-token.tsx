@@ -15,7 +15,7 @@
  */
 
 import { Button } from "@/components/ui/button.tsx";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { rotateTunnelUserToken } from "@/services/tunnel/users.ts";
 
 interface RotateTokenProps {
@@ -23,19 +23,19 @@ interface RotateTokenProps {
 }
 
 export const RotateToken = ({ id }: RotateTokenProps) => {
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<{ id: string; value: string } | null>(
+    null,
+  );
 
   const rotateToken = async () => {
     if (id === null) return;
-    let res = await rotateTunnelUserToken(id);
+    const res = await rotateTunnelUserToken(id);
     if (typeof res === "string") {
-      setToken(res);
+      setToken({ id, value: res });
     }
   };
 
-  useEffect(() => {
-    setToken(null);
-  }, [id]);
+  const currentToken = token?.id === id ? token.value : null;
 
   return (
     <div>
@@ -45,20 +45,15 @@ export const RotateToken = ({ id }: RotateTokenProps) => {
           <p>
             Clients with the old token would lose access to the tunnel service.
           </p>
-          <Button
-            onClick={async () => {
-              await rotateToken();
-            }}
-            className="w-80 mt-1 self-center"
-          >
+          <Button onClick={rotateToken} className="w-80 mt-1 self-center">
             Refresh
           </Button>
         </div>
       )}
-      {id !== null && token !== null && (
+      {id !== null && currentToken !== null && (
         <div className="flex flex-col p-1 gap-1">
           <p className="font-semibold">New Token: </p>
-          <p className="font-mono">{token}</p>
+          <p className="font-mono">{currentToken}</p>
         </div>
       )}
     </div>

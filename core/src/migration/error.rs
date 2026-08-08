@@ -16,8 +16,8 @@
 use std::fmt::Formatter;
 
 pub enum Error {
-    DatabaseError(crate::orm::error::Error),
-    MigrationExecError(sqlx::Error),
+    Database(crate::orm::error::Error),
+    MigrationExec(sqlx::Error),
     InvalidMigrationRecord,
     FutureMigrationVersion,
     UnknownMigrationVersion,
@@ -26,8 +26,8 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::DatabaseError(e) => write!(f, "DatabaseError: {e}"),
-            Self::MigrationExecError(e) => write!(f, "MigrationExecError: {e}"),
+            Self::Database(e) => write!(f, "DatabaseError: {e}"),
+            Self::MigrationExec(e) => write!(f, "MigrationExecError: {e}"),
             Self::InvalidMigrationRecord => write!(f, "Invalid migration record in the database"),
             Self::FutureMigrationVersion => write!(
                 f,
@@ -43,12 +43,12 @@ impl std::fmt::Display for Error {
 
 impl From<sqlx::Error> for Error {
     fn from(value: sqlx::Error) -> Self {
-        Self::MigrationExecError(value)
+        Self::MigrationExec(value)
     }
 }
 
 impl From<crate::orm::error::Error> for Error {
     fn from(value: crate::orm::error::Error) -> Self {
-        Self::DatabaseError(value)
+        Self::Database(value)
     }
 }

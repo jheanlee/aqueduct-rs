@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { editUserSchema } from "@/form-schemas/users/edit-user.ts";
@@ -92,16 +92,17 @@ export const EditUser = ({ onClose, user }: EditUserInterface) => {
     }
   };
 
-  useEffect(() => {
-    if (!dialogOpen) {
-      form.reset();
-      setSubmitStatus(200);
-      setShowPasswordInput(false);
-    }
-  }, [dialogOpen]);
-
   return (
-    <Dialog open={dialogOpen}>
+    <Dialog
+      open={dialogOpen}
+      onOpenChange={(open: boolean) => {
+        if (!open) {
+          form.reset();
+          setSubmitStatus(200);
+          setShowPasswordInput(false);
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="outline" onClick={() => setDialogOpen(true)}>
           <Pencil />

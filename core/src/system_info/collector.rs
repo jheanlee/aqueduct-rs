@@ -36,7 +36,7 @@ pub async fn system_info_hot(
     system_info: Arc<SystemInfo>,
     cancellation_token: CancellationToken,
 ) -> Result<(), Error> {
-    let mut sys = tokio::task::spawn_blocking(|| System::new_all())
+    let mut sys = tokio::task::spawn_blocking(System::new_all)
         .await
         .inspect_err(|error| error!("System info thread panicked: {:?}", error))?;
     let pid_arr = [Pid::from(std::process::id() as usize)];

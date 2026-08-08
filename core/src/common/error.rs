@@ -18,23 +18,23 @@ use crate::core::tunnel::error::TunnelError;
 
 #[derive(Debug)]
 pub enum Error {
-    MessageBuildError(MessageBuildError),
-    MessageParseError(MessageParseError),
-    TunnelError(TunnelError),
-    AcquireError(tokio::sync::AcquireError),
-    Argon2HashError(argon2::password_hash::Error),
-    TokioJoinError(tokio::task::JoinError),
+    MessageBuild(MessageBuildError),
+    MessageParse(MessageParseError),
+    Tunnel(TunnelError),
+    Acquire(tokio::sync::AcquireError),
+    Argon2Hash(argon2::password_hash::Error),
+    TokioJoin(tokio::task::JoinError),
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::MessageBuildError(e) => write!(f, "MessageBuildError: {e}"),
-            Error::MessageParseError(e) => write!(f, "MessageParseError: {e}"),
-            Error::TunnelError(e) => write!(f, "TunnelError: {e}"),
-            Error::AcquireError(e) => write!(f, "AcquireError: {e}"),
-            Error::Argon2HashError(e) => write!(f, "Argon2HashError: {e}"),
-            Error::TokioJoinError(e) => write!(f, "TokioJoinError: {e}"),
+            Error::MessageBuild(e) => write!(f, "MessageBuildError: {e}"),
+            Error::MessageParse(e) => write!(f, "MessageParseError: {e}"),
+            Error::Tunnel(e) => write!(f, "TunnelError: {e}"),
+            Error::Acquire(e) => write!(f, "AcquireError: {e}"),
+            Error::Argon2Hash(e) => write!(f, "Argon2HashError: {e}"),
+            Error::TokioJoin(e) => write!(f, "TokioJoinError: {e}"),
         }
     }
 }
@@ -43,36 +43,36 @@ impl std::error::Error for Error {}
 
 impl From<TunnelError> for Error {
     fn from(error: TunnelError) -> Self {
-        Self::TunnelError(error)
+        Self::Tunnel(error)
     }
 }
 
 impl From<MessageBuildError> for Error {
     fn from(error: MessageBuildError) -> Self {
-        Self::MessageBuildError(error)
+        Self::MessageBuild(error)
     }
 }
 
 impl From<MessageParseError> for Error {
     fn from(error: MessageParseError) -> Self {
-        Self::MessageParseError(error)
+        Self::MessageParse(error)
     }
 }
 
 impl From<tokio::sync::AcquireError> for Error {
     fn from(error: tokio::sync::AcquireError) -> Self {
-        Self::AcquireError(error)
+        Self::Acquire(error)
     }
 }
 
 impl From<argon2::password_hash::Error> for Error {
     fn from(error: argon2::password_hash::Error) -> Self {
-        Self::Argon2HashError(error)
+        Self::Argon2Hash(error)
     }
 }
 
 impl From<tokio::task::JoinError> for Error {
     fn from(error: tokio::task::JoinError) -> Self {
-        Self::TokioJoinError(error)
+        Self::TokioJoin(error)
     }
 }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 use crate::core::message::error::MessageParseError;
-use crate::core::message::message::MessageType;
+use crate::core::message::types::MessageType;
 
 pub const MESSAGE_VERSION_V1: u8 = 1;
 pub const MESSAGE_TYPE_BYTES_V1: usize = 1;
@@ -49,23 +49,11 @@ impl MessageTypeV1 {
             0xf0 => Ok(Self::Close),
             0xfe => Ok(Self::Empty),
             0xff => Ok(Self::Error),
-            _ => Err(MessageParseError::InvalidType),
+            _ => Err(MessageParseError::Type),
         }
     }
 }
 
-impl Into<MessageType> for MessageTypeV1 {
-    fn into(self) -> MessageType {
-        match self {
-            Self::Heartbeat => MessageType::Heartbeat,
-            Self::Service => MessageType::Service,
-            Self::Proxy => MessageType::Proxy,
-            Self::Close => MessageType::Close,
-            Self::Empty => MessageType::Empty,
-            Self::Error => MessageType::Error,
-        }
-    }
-}
 impl From<MessageType> for MessageTypeV1 {
     fn from(value: MessageType) -> Self {
         match value {
