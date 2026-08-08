@@ -20,6 +20,7 @@ use crate::api::status::tunnel::get_tunnel_status;
 // use crate::api::tunnel::access::{
 //     add_blacklist, add_whitelist, remove_blacklist, remove_whitelist,
 // };
+use crate::api::static_files::handlers::{index_handler, static_file_handler};
 use crate::api::tunnel::settings::{get_settings, set_settings};
 use crate::api::tunnel::usage::{get_tunnel_usage_by_user, get_tunnel_usage_overall};
 use crate::api::tunnel::users::{
@@ -46,18 +47,6 @@ use tokio::sync::RwLock;
 use tokio::time::{Instant, sleep};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
-
-pub struct ApiState {
-    pub start_time: Instant,
-    pub shared: Shared,
-    pub system_info: Arc<SystemInfo>,
-    pub tunnel_info: Arc<TunnelInfo>,
-    pub whitelist_table: Arc<RwLock<IpNetworkTable<()>>>,
-    pub blacklist_table: Arc<RwLock<IpNetworkTable<()>>>,
-    pub jti_map: DashMap<String, (String, String, Instant)>,
-    pub refresh_token_keys: JwtKeyPair,
-    pub access_token_keys: JwtKeyPair,
-}
 
 pub async fn api_control(
     api_host: SocketAddr,
@@ -125,7 +114,9 @@ pub async fn api_control(
         .route("/api/refresh", post(refresh_token))
         .route("/api/login", post(login))
         .route("/api/logout", post(logout))
-        .with_state(state);
+        .with_state(state)
+        .route("/{*path}", get(static_file_handler))
+        .route("/", get(index_handler));
 
     match TcpListener::bind(api_host).await {
         Ok(api_listener) => {
@@ -163,4 +154,16 @@ async fn update_access_middleware(
         warn!("Unable to update the access tables: {:?}", error);
     }
     response
+}
+
+pub struct ApiState {
+    pub start_time: Instant,
+    pub shared: Shared,
+    pub system_info: Arc<SystemInfo>,
+    pub tunnel_info: Arc<TunnelInfo>,
+    pub whitelist_table: Arc<RwLock<IpNetworkTable<()>>>,
+    pub blacklist_table: Arc<RwLock<IpNetworkTable<()>>>,
+    pub jti_map: DashMap<String, (String, String, Instant)>,
+    pub refresh_token_keys: JwtKeyPair,
+    pub access_token_keys: JwtKeyPair,
 }
