@@ -3,6 +3,7 @@ name = "aqueduct-rs"
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
+build = "build.rs"
 
 [features]
 default = ["migration"]
