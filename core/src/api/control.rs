@@ -30,7 +30,7 @@ use crate::api::tunnel::users::{
 use crate::common::model::Shared;
 use crate::common::tunnel_info::TunnelInfo;
 use crate::config::access_handler::update_access_ip_tables;
-use crate::system_info::system_info::SystemInfo;
+use crate::system_info::collector::SystemInfo;
 use axum::extract::{Request, State};
 use axum::middleware::Next;
 use axum::response::Response;
@@ -122,18 +122,16 @@ pub async fn api_control(
         Ok(api_listener) => {
             select! {
                 biased;
-                _ = cancellation_token.cancelled() => { return; }
+                _ = cancellation_token.cancelled() => {}
                 serve_result = axum::serve(api_listener, api) => {
                     if let Err(error) = serve_result {
                         error!("Failed to start api services: {:?}", error);
-                        return;
                     }
                 }
             }
         }
         Err(error) => {
             error!("Failed to start api services: {:?}", error);
-            return;
         }
     };
 }

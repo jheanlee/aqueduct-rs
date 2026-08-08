@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 use crate::core::message::common::MessageBuilder;
-use crate::core::message::message::{Message, MessageType};
+use crate::core::message::types::{Message, MessageType};
 use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::model::Flags;
 use futures::SinkExt;
@@ -78,17 +78,12 @@ pub async fn tunnel_control_message_sender(
         }
 
         let result = match message.message_type {
-            MessageType::Error | MessageType::Close => {
-                match timeout(
-                    Duration::from_millis(200),
-                    tunnel_client_tx.send(write_buffer.split().freeze()),
-                )
-                .await
-                {
-                    Ok(value) => Some(value),
-                    Err(_) => None,
-                }
-            }
+            MessageType::Error | MessageType::Close => timeout(
+                Duration::from_millis(200),
+                tunnel_client_tx.send(write_buffer.split().freeze()),
+            )
+            .await
+            .ok(),
             _ => {
                 tunnel_client_tx
                     .send(write_buffer.split().freeze())

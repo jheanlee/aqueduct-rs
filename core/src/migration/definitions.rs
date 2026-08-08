@@ -13,5 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pub mod collector;
-pub mod error;
+
+pub struct Migration {
+    pub name: &'static str,
+    pub sql: &'static str,
+}
+
+macro_rules! include_up_migration {
+    ($migration: literal) => {
+        Migration {
+            name: $migration,
+            sql: include_str!(concat!(
+                "../../../migration/src/migrations_raw_sql/up/",
+                $migration,
+                ".sql"
+            )),
+        }
+    };
+}
+
+pub const BOOTSTRAP_SQL: &str =
+    include_str!("../../../migration/src/migrations_raw_sql/bootstrap.sql");
+pub const MIGRATION_001: Migration = include_up_migration!("Migration20260806140916");

@@ -18,7 +18,7 @@ use crate::common::auth_manager::AuthManager;
 use crate::orm::error::Error;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use entity::entities::tunnel_users::{ActiveModel, Column, Entity, ListUserPartialModel, Model};
 use nanoid::nanoid;
 use rand::{RngExt, rng};
@@ -59,7 +59,7 @@ pub async fn authenticate_tunnel_token(
 ) -> Result<String, Error> {
     let mut hasher = Sha256::new();
     hasher.update(token);
-    let hashed_token = BASE64_STANDARD.encode(hasher.finalize().to_vec());
+    let hashed_token = BASE64_STANDARD.encode(hasher.finalize());
 
     let mut user = Entity::find()
         .filter(Column::Token.eq(hashed_token))
@@ -91,7 +91,7 @@ pub async fn new_tunnel_user(
 
     let mut hasher = Sha256::new();
     hasher.update(token.as_str());
-    let hashed_token = BASE64_STANDARD.encode(hasher.finalize().to_vec());
+    let hashed_token = BASE64_STANDARD.encode(hasher.finalize());
 
     let user = ActiveModel {
         id: Set(nanoid!()),
@@ -99,7 +99,7 @@ pub async fn new_tunnel_user(
         token: Set(hashed_token),
         hashed_password: Set(hashed_password),
         label: Set(new_user.label),
-        last_login: Set(NaiveDateTime::from(DateTime::UNIX_EPOCH.naive_utc())),
+        last_login: Set(DateTime::UNIX_EPOCH.naive_utc()),
         administrator: Set(new_user.administrator),
     };
 
@@ -144,7 +144,7 @@ pub async fn rotate_token(db_connection: DatabaseConnection, id: &str) -> Result
 
     let mut hasher = Sha256::new();
     hasher.update(token.as_str());
-    let hashed_token = BASE64_STANDARD.encode(hasher.finalize().to_vec());
+    let hashed_token = BASE64_STANDARD.encode(hasher.finalize());
 
     user.token = Set(hashed_token);
 
@@ -166,11 +166,11 @@ async fn get_user_by_username(
     db_connection: DatabaseConnection,
     username: &str,
 ) -> Result<Model, Error> {
-    Ok(Entity::find()
+    Entity::find()
         .filter(Column::Username.eq(username.to_lowercase()))
         .one(&db_connection)
         .await?
-        .ok_or(Error::NotFound)?)
+        .ok_or(Error::NotFound)
 }
 
 pub async fn list_users(

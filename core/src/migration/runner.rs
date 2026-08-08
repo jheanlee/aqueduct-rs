@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+use crate::migration::definitions::{BOOTSTRAP_SQL, MIGRATION_001};
 use crate::migration::error::Error;
 use crate::migration::error::Error::{
     FutureMigrationVersion, InvalidMigrationRecord, UnknownMigrationVersion,
@@ -20,27 +21,6 @@ use crate::migration::error::Error::{
 use crate::orm::mikro_orm_migrations::get_latest_migration_record;
 use sea_orm::DatabaseConnection;
 use tracing::{error, warn};
-
-pub struct Migration {
-    name: &'static str,
-    sql: &'static str,
-}
-
-macro_rules! include_up_migration {
-    ($migration: literal) => {
-        Migration {
-            name: $migration,
-            sql: include_str!(concat!(
-                "../../../migration/src/migrations_raw_sql/up/",
-                $migration,
-                ".sql"
-            )),
-        }
-    };
-}
-
-const BOOTSTRAP_SQL: &str = include_str!("../../../migration/src/migrations_raw_sql/bootstrap.sql");
-pub const MIGRATION_001: Migration = include_up_migration!("Migration20260806140916");
 
 pub async fn migrate(db_connection: DatabaseConnection) -> Result<(), Error> {
     const LATEST_MIGRATION_VERSION: &str = MIGRATION_001.name;
@@ -77,17 +57,16 @@ pub async fn migrate(db_connection: DatabaseConnection) -> Result<(), Error> {
         },
     };
 
-    if current_migration_version == 0 {
-        if let Err(error) = sqlx::raw_sql(MIGRATION_001.sql)
+    if current_migration_version == 0
+        && let Err(error) = sqlx::raw_sql(MIGRATION_001.sql)
             .execute(db_connection_pool)
             .await
-        {
-            error!(
-                "Failed to execute migration 001 ('{}'): {}",
-                MIGRATION_001.name, error
-            );
-            Err(error)?;
-        }
+    {
+        error!(
+            "Failed to execute migration 001 ('{}'): {}",
+            MIGRATION_001.name, error
+        );
+        Err(error)?;
     }
 
     warn!("Migrated up to '{}'", LATEST_MIGRATION_VERSION);

@@ -15,7 +15,7 @@
  */
 use crate::core::message::common::MessageParserVersioned;
 use crate::core::message::error::MessageParseError;
-use crate::core::message::message::Message;
+use crate::core::message::types::Message;
 use crate::core::message::v1::common::{MESSAGE_TYPE_BYTES_V1, MESSAGE_VERSION_V1, MessageTypeV1};
 use tokio_util::bytes::Bytes;
 
@@ -24,13 +24,13 @@ pub struct MessageParserV1;
 impl MessageParserVersioned for MessageParserV1 {
     fn parse(bytes: Bytes) -> Result<Message, MessageParseError> {
         if bytes.len() < MESSAGE_TYPE_BYTES_V1 {
-            return Err(MessageParseError::InvalidLength);
+            return Err(MessageParseError::Length);
         }
 
         let message_payload = bytes.slice(MESSAGE_TYPE_BYTES_V1..);
 
         //  string validation
-        str::from_utf8(&message_payload).map_err(|_| MessageParseError::InvalidString)?;
+        str::from_utf8(&message_payload).map_err(|_| MessageParseError::String)?;
 
         Ok(Message {
             message_version: MESSAGE_VERSION_V1,
