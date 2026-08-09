@@ -1,5 +1,7 @@
 FROM node:24-trixie AS node-build
 
+ARG DOCKER_BUILD=1
+
 WORKDIR /webui
 
 COPY webui/package.json webui/package-lock.json ./
@@ -9,6 +11,8 @@ COPY webui/ ./
 RUN npm run build
 
 FROM rust:1.97-trixie AS rust-build
+
+ARG DOCKER_BUILD=1
 
 WORKDIR /aqueduct
 
@@ -26,4 +30,4 @@ WORKDIR /aqueduct
 
 COPY --from=rust-build /aqueduct/target/release/aqueduct-rs .
 
-CMD ./aqueduct-rs
+CMD ["./aqueduct-rs"]

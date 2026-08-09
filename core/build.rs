@@ -24,20 +24,24 @@ fn main() {
     let webui_src = webui_dir.join("src");
     let webui_dist = webui_dir.join("dist");
 
-    println!("cargo:rerun-if-changed={}", webui_src.display());
+    if env::var_os("DOCKER_BUILD").is_none() {
+        println!("cargo:rerun-if-changed={}", webui_src.display());
+    }
 
     if !webui_dist.exists() {
         println!("cargo:warning=Web UI build output missing. Run `cd webui && npm run build`");
         return;
     }
 
-    let latest_src_modification = latest_dir_modification(&webui_src);
-    let latest_dist_modification = latest_dir_modification(&webui_dist);
+    if env::var_os("DOCKER_BUILD").is_none() {
+        let latest_src_modification = latest_dir_modification(&webui_src);
+        let latest_dist_modification = latest_dir_modification(&webui_dist);
 
-    if latest_src_modification > latest_dist_modification {
-        println!(
-            "cargo:warning=Web UI source files are newer than the build output. Run `cd webui && npm run build`"
-        );
+        if latest_src_modification > latest_dist_modification {
+            println!(
+                "cargo:warning=Web UI source files are newer than the build output. Run `cd webui && npm run build`"
+            );
+        }
     }
 }
 
