@@ -24,6 +24,8 @@ fn main() {
     let webui_src = webui_dir.join("src");
     let webui_dist = webui_dir.join("dist");
 
+    println!("cargo:rerun-if-changed={}", webui_src.display());
+
     if !webui_dist.exists() {
         println!("cargo:warning=Web UI build output missing. Run `cd webui && npm run build`");
         return;
