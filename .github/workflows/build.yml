@@ -11,7 +11,7 @@ permissions:
 
 jobs:
     build:
-        name: Build on (${{ matrix.os }})
+        name: Build Binary (${{ matrix.os }})
         runs-on: ${{ matrix.os }}
         strategy:
             fail-fast: false
@@ -45,6 +45,9 @@ jobs:
                 with:
                     toolchain: 1.97.0
                     components: clippy
+
+            -   name: Cache Rust dependencies
+                uses: Swatinem/rust-cache@v2
 
             -   name: Run Clippy
                 run: cargo clippy --all-targets --all-features --locked -- -D warnings
