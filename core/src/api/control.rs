@@ -15,12 +15,9 @@
  */
 use crate::api::jwt::auth::{access_token_middleware, login, logout, refresh_token};
 use crate::api::jwt::key::JwtKeyPair;
+use crate::api::static_files::handlers::{index_handler, static_file_handler};
 use crate::api::status::system::get_system_status;
 use crate::api::status::tunnel::get_tunnel_status;
-// use crate::api::tunnel::access::{
-//     add_blacklist, add_whitelist, remove_blacklist, remove_whitelist,
-// };
-use crate::api::static_files::handlers::{index_handler, static_file_handler};
 use crate::api::tunnel::settings::{get_settings, set_settings};
 use crate::api::tunnel::usage::{get_tunnel_usage_by_user, get_tunnel_usage_overall};
 use crate::api::tunnel::users::{
@@ -50,28 +47,10 @@ use tracing::{error, warn};
 
 pub async fn api_control(
     api_host: SocketAddr,
-    shared: Shared,
-    system_info: Arc<SystemInfo>,
-    tunnel_info: Arc<TunnelInfo>,
-    whitelist_table: Arc<RwLock<IpNetworkTable<()>>>,
-    blacklist_table: Arc<RwLock<IpNetworkTable<()>>>,
-    jwt_refresh_keys: JwtKeyPair,
-    jwt_access_keys: JwtKeyPair,
+    api_state: Arc<ApiState>,
     cancellation_token: CancellationToken,
 ) {
-    let state = Arc::new(ApiState {
-        start_time: Instant::now(),
-        shared,
-        system_info,
-        tunnel_info,
-        whitelist_table,
-        blacklist_table,
-        jti_map: DashMap::new(),
-        refresh_token_keys: jwt_refresh_keys,
-        access_token_keys: jwt_access_keys,
-    });
-
-    let state_clone = state.clone();
+    let api_state_clone = api_state.clone();
     let cancellation_token_clone = cancellation_token.clone();
     tokio::spawn(async move {
         loop {
@@ -82,7 +61,7 @@ pub async fn api_control(
                 }
                 _ = sleep(Duration::from_secs(300)) => {
                     let deadline = Instant::now();
-                    state_clone.jti_map.retain(|_, value| value.2 > deadline);
+                    api_state_clone.jti_map.retain(|_, value| value.2 > deadline);
                 }
             }
         }
@@ -91,7 +70,7 @@ pub async fn api_control(
     let with_access_update = Router::new()
         .route("/api/tunnel/settings", put(set_settings))
         .layer(middleware::from_fn_with_state(
-            state.clone(),
+            api_state.clone(),
             update_access_middleware,
         ));
 
@@ -108,13 +87,13 @@ pub async fn api_control(
         .route("/api/status/system", get(get_system_status))
         .route("/api/status/tunnel", get(get_tunnel_status))
         .layer(middleware::from_fn_with_state(
-            state.clone(),
+            api_state.clone(),
             access_token_middleware,
         ))
         .route("/api/refresh", post(refresh_token))
         .route("/api/login", post(login))
         .route("/api/logout", post(logout))
-        .with_state(state)
+        .with_state(api_state)
         .route("/{*path}", get(static_file_handler))
         .route("/", get(index_handler));
 

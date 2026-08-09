@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use crate::api::control::api_control;
+use crate::api::control::{ApiState, api_control};
 use crate::api::jwt::key::init_jwt_keys;
 use crate::common::auth_manager::AuthManager;
 use crate::common::model::Shared;
@@ -41,7 +41,7 @@ use tokio::net::TcpListener;
 use tokio::select;
 use tokio::sync::{RwLock, Semaphore, mpsc};
 use tokio::task::JoinSet;
-use tokio::time::timeout;
+use tokio::time::{Instant, timeout};
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, error, info, info_span, warn};
@@ -239,15 +239,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
             exit(1);
         }
     };
-    let api_task = tokio::spawn(api_control(
-        config.api_host,
-        shared.clone(),
-        system_info.clone(),
-        tunnel_info.clone(),
-        whitelist.clone(),
-        blacklist.clone(),
+
+    let api_state = Arc::new(ApiState {
+        start_time: Instant::now(),
+        shared: shared.clone(),
+        system_info,
+        tunnel_info: tunnel_info.clone(),
+        whitelist_table: whitelist.clone(),
+        blacklist_table: blacklist.clone(),
+        jti_map: DashMap::new(),
         refresh_token_keys,
         access_token_keys,
+    });
+    let api_task = tokio::spawn(api_control(
+        config.api_host,
+        api_state,
         cancellation_token.clone(),
     ));
 

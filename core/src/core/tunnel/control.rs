@@ -409,6 +409,7 @@ async fn client_guard(
             handle_bad_request_handler(flags.clone(), control_message_sender_client).await;
             Err(())
         }
+        //  proxy branch breaks out of the loop, no need to check
         // Some(ClientType::Proxy) => {
         //     log(
         //         Level::Debug,
