@@ -18,7 +18,7 @@ COPY entity ./entity
 COPY migration/src/migrations_raw_sql ./migration/src/migrations_raw_sql
 COPY --from=node-build /webui/dist ./webui/dist
 
-RUN cargo build --profile release
+RUN cargo build --release --locked
 
 FROM debian:trixie-slim
 

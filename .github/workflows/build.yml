@@ -56,3 +56,24 @@ jobs:
                 env:
                     RUSTFLAGS: "-D warnings"
                 run: cargo build --release --locked
+
+    build_docker:
+        name: Build Docker
+        runs-on: ubuntu-latest
+
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v7
+
+            -   name: Set up Docker Buildx
+                uses: docker/setup-buildx-action@v4
+
+            -   name: Build Docker
+                uses: docker/build-push-action@v7
+                with:
+                    context: .
+                    push: false
+                    platforms: linux/amd64,linux/arm64
+                    tags: aqueduct-rs:ci
+                    cache-from: type=gha
+                    cache-to: type=gha,mode=max
