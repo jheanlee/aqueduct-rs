@@ -1,0 +1,55 @@
+name: Build
+
+on:
+    push:
+        branches: [ "master" ]
+    pull_request:
+        branches: [ "master" ]
+
+permissions:
+    contents: read
+
+jobs:
+    build:
+        name: Build on (${{ matrix.os }})
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: false
+            matrix:
+                os:
+                    - ubuntu-latest
+                    - ubuntu-24.04-arm
+                    - macos-latest
+                    - macos-26-intel
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v7
+
+            -   name: Setup Node.js
+                uses: actions/setup-node@v7
+                with:
+                    node-version: 24.x
+                    cache: npm
+                    cache-dependency-path: webui/package-lock.json
+
+            -   name: Install WebUI dependencies
+                working-directory: webui
+                run: npm ci
+
+            -   name: Build WebUI
+                working-directory: webui
+                run: npm run build
+
+            -   name: Setup Rust
+                uses: dtolnay/rust-toolchain@stable
+                with:
+                    toolchain: 1.97.0
+                    components: clippy
+
+            -   name: Run Clippy
+                run: cargo clippy --all-targets --all-features --locked -- -D warnings
+
+            -   name: Build Rust binary
+                env:
+                    RUSTFLAGS: "-D warnings"
+                run: cargo build --release --locked
