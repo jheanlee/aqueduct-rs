@@ -20,23 +20,23 @@ use tracing::warn;
 
 #[derive(Debug)]
 pub enum Error {
-    DatabaseError(crate::orm::error::Error),
-    JsonError(serde_json::Error),
-    HttpError(axum::http::Error),
-    JWTError(jsonwebtoken::errors::Error),
-    IoError(std::io::Error),
-    ConfigError(crate::config::error::ConfigError),
+    Database(crate::orm::error::Error),
+    Json(serde_json::Error),
+    Http(axum::http::Error),
+    Jwt(jsonwebtoken::errors::Error),
+    Io(std::io::Error),
+    Config(crate::config::error::ConfigError),
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::DatabaseError(e) => write!(f, "DatabaseError: {e}"),
-            Self::JsonError(e) => write!(f, "JsonError: {e}"),
-            Self::HttpError(e) => write!(f, "HttpError: {e}"),
-            Self::JWTError(e) => write!(f, "JWTError: {e}"),
-            Self::IoError(e) => write!(f, "IoError: {e}"),
-            Self::ConfigError(e) => write!(f, "ConfigError: {e}"),
+            Self::Database(e) => write!(f, "DatabaseError: {e}"),
+            Self::Json(e) => write!(f, "JsonError: {e}"),
+            Self::Http(e) => write!(f, "HttpError: {e}"),
+            Self::Jwt(e) => write!(f, "JWTError: {e}"),
+            Self::Io(e) => write!(f, "IoError: {e}"),
+            Self::Config(e) => write!(f, "ConfigError: {e}"),
         }
     }
 }
@@ -46,61 +46,61 @@ impl std::error::Error for Error {}
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
         match self {
-            Error::DatabaseError(crate::orm::error::Error::Unauthorized) => {}
-            Error::DatabaseError(crate::orm::error::Error::NotFound) => {}
-            Error::DatabaseError(crate::orm::error::Error::BadRequest) => {}
-            Error::DatabaseError(crate::orm::error::Error::Conflict) => {}
+            Error::Database(crate::orm::error::Error::Unauthorized) => {}
+            Error::Database(crate::orm::error::Error::NotFound) => {}
+            Error::Database(crate::orm::error::Error::BadRequest) => {}
+            Error::Database(crate::orm::error::Error::Conflict) => {}
             ref error => {
                 warn!("{:?}", error);
             }
         }
 
         match self {
-            Error::DatabaseError(error) => error.into_response(),
-            Error::JsonError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-            Error::HttpError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-            Error::JWTError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-            Error::IoError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-            Error::ConfigError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            Error::Database(error) => error.into_response(),
+            Error::Json(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            Error::Http(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            Error::Jwt(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            Error::Io(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            Error::Config(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }
 }
 
 impl From<crate::orm::error::Error> for Error {
     fn from(error: crate::orm::error::Error) -> Self {
-        Self::DatabaseError(error)
+        Self::Database(error)
     }
 }
 
 impl From<serde_json::Error> for Error {
     fn from(error: serde_json::Error) -> Self {
-        Self::JsonError(error)
+        Self::Json(error)
     }
 }
 
 impl From<axum::http::Error> for Error {
     fn from(error: axum::http::Error) -> Self {
-        Self::HttpError(error)
+        Self::Http(error)
     }
 }
 
 impl From<jsonwebtoken::errors::Error> for Error {
     fn from(error: jsonwebtoken::errors::Error) -> Self {
-        Self::JWTError(error)
+        Self::Jwt(error)
     }
 }
 
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
-        Self::IoError(error)
+        Self::Io(error)
     }
 }
 
 impl From<crate::config::error::ConfigError> for Error {
     fn from(error: crate::config::error::ConfigError) -> Self {
         match error {
-            crate::config::error::ConfigError::OrmError(e) => Self::DatabaseError(e),
-            e => Self::ConfigError(e),
+            crate::config::error::ConfigError::OrmError(e) => Self::Database(e),
+            e => Self::Config(e),
         }
     }
 }

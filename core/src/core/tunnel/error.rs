@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 use crate::core::message::error::MessageParseError;
-use crate::core::message::message::Message;
+use crate::core::message::types::Message;
 use tokio::sync::mpsc;
 
 #[derive(Debug)]

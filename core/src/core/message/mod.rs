@@ -16,5 +16,5 @@
 
 pub mod common;
 pub mod error;
-pub mod message;
+pub mod types;
 pub mod v1;

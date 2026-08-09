@@ -72,7 +72,7 @@ pub async fn set_settings(
         .map(|entry| {
             entry.parse().map_err(|e| {
                 warn!("{:?}", e);
-                Error::DatabaseError(crate::orm::error::Error::BadRequest)
+                Error::Database(crate::orm::error::Error::BadRequest)
             })
         })
         .collect::<Result<Vec<IpNetwork>, Error>>()?;
@@ -82,7 +82,7 @@ pub async fn set_settings(
         .map(|entry| {
             entry
                 .parse()
-                .map_err(|_| Error::DatabaseError(crate::orm::error::Error::BadRequest))
+                .map_err(|_| Error::Database(crate::orm::error::Error::BadRequest))
         })
         .collect::<Result<Vec<IpNetwork>, Error>>()?;
 

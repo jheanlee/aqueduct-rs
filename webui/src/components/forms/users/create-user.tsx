@@ -26,7 +26,7 @@ import {
   FieldLabel,
   FieldSet,
 } from "@/components/ui/field.tsx";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Input } from "@/components/ui/input.tsx";
 import {
   Dialog,
@@ -83,15 +83,16 @@ export const CreateUser = ({ onClose }: CreateUserInterface) => {
     }
   };
 
-  useEffect(() => {
-    if (!dialogOpen) {
-      form.reset();
-      setSubmitStatus(200);
-    }
-  }, [dialogOpen]);
-
   return (
-    <Dialog open={dialogOpen}>
+    <Dialog
+      open={dialogOpen}
+      onOpenChange={(open: boolean) => {
+        if (!open) {
+          form.reset();
+          setSubmitStatus(200);
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button
           variant="outline"

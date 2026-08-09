@@ -20,7 +20,6 @@ import { paths } from "@/config/paths.ts";
 import { getTunnelUsage } from "@/services/tunnel/usage.ts";
 import { toast } from "sonner";
 import {
-  handleUsageChartDataPoints,
   TunnelUsageConnectionsChart,
   TunnelUsageIOChart,
   type UsageDataPointFormatted,
@@ -39,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.tsx";
+import { handleUsageChartDataPoints } from "@/components/charts/tunnel-usage-utils.ts";
 
 export const UserUsage = () => {
   const navigate = useNavigate();
@@ -60,7 +60,7 @@ export const UserUsage = () => {
     if (params.id === undefined) {
       navigate(paths.root.notFound.getHref());
     }
-  }, []);
+  }, [navigate, params.id]);
 
   useEffect(() => {
     const getResolution = (zoom: string) => {
@@ -120,7 +120,7 @@ export const UserUsage = () => {
 
     const intervalID = setInterval(updateChartTimer, 60 * 1000);
     return () => clearInterval(intervalID);
-  }, [usageChartZoom]);
+  }, [usageChartZoom, params.id]);
 
   return (
     <div className="grid gird-cols-1 md:grid-cols-2 gap-4 text-foreground">

@@ -16,16 +16,16 @@
 
 #[derive(Debug)]
 pub enum Error {
-    JoinError(tokio::task::JoinError),
-    SysInfoError(&'static str),
+    Join(tokio::task::JoinError),
+    SysInfo(&'static str),
     Empty,
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::JoinError(error) => write!(f, "JoinError: {error}"),
-            Error::SysInfoError(error) => write!(f, "SysInfoError: {error}"),
+            Error::Join(error) => write!(f, "JoinError: {error}"),
+            Error::SysInfo(error) => write!(f, "SysInfoError: {error}"),
             Error::Empty => write!(f, ""),
         }
     }
@@ -35,12 +35,12 @@ impl std::error::Error for Error {}
 
 impl From<tokio::task::JoinError> for Error {
     fn from(value: tokio::task::JoinError) -> Self {
-        Error::JoinError(value)
+        Error::Join(value)
     }
 }
 
 impl From<&'static str> for Error {
     fn from(value: &'static str) -> Self {
-        Error::SysInfoError(value)
+        Error::SysInfo(value)
     }
 }

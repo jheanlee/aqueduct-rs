@@ -77,13 +77,13 @@ export const SettingsForm = () => {
     };
 
     void getData();
-  }, []);
+  }, [form]);
 
   const onSubmit = async (values: z.infer<typeof settingsSchema>) => {
-    let whitelist = values.whitelist
+    const whitelist = values.whitelist
       .split("\n")
       .filter((str) => str.length > 0);
-    let blacklist = values.blacklist
+    const blacklist = values.blacklist
       .split("\n")
       .filter((str) => str.length > 0);
 

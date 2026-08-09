@@ -27,7 +27,7 @@ use crate::core::tunnel::control::tunnel_client_control;
 use crate::core::tunnel::model::{Flags, TunnelStatus};
 use crate::core::tunnel::pending_cleaner::pending_client_cleaner;
 use crate::orm::tunnel_session::database_tunnel_session_batch_task;
-use crate::system_info::system_info::{SystemInfo, system_info_cold, system_info_hot};
+use crate::system_info::collector::{SystemInfo, system_info_cold, system_info_hot};
 use dashmap::DashMap;
 use ip_network_table::IpNetworkTable;
 use rustls::pki_types::pem::PemObject;
@@ -51,7 +51,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 #[cfg(feature = "migration")]
 use crate::config::args::MigrationModes;
 #[cfg(feature = "migration")]
-use crate::migration::migration::migrate;
+use crate::migration::runner::migrate;
 
 mod api;
 mod common;

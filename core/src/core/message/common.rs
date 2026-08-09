@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 use crate::core::message::error::{MessageBuildError, MessageParseError};
-use crate::core::message::message::Message;
+use crate::core::message::types::Message;
 use crate::core::message::v1::builder::MessageBuilderV1;
 use crate::core::message::v1::common::MESSAGE_VERSION_V1;
 use crate::core::message::v1::parser::MessageParserV1;
@@ -26,12 +26,12 @@ pub struct MessageParser;
 impl MessageParser {
     pub fn parse(bytes: Bytes) -> Result<Message, MessageParseError> {
         if bytes.len() < MESSAGE_VERSION_BYTES {
-            return Err(MessageParseError::InvalidLength);
+            return Err(MessageParseError::Length);
         }
 
         match bytes[0] {
             MESSAGE_VERSION_V1 => MessageParserV1::parse(bytes.slice(1..)),
-            _ => Err(MessageParseError::InvalidVersion),
+            _ => Err(MessageParseError::Version),
         }
     }
 }

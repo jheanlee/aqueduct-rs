@@ -45,9 +45,7 @@ impl AuthManager {
 
     pub async fn hash_password(&self, password: String) -> Result<String, Error> {
         let _permit = self.semaphore.acquire().await?;
-        let hash =
-            spawn_blocking(move || PasswordUtils::hash_password(password.as_bytes())).await?;
-        Ok(hash?)
+        spawn_blocking(move || PasswordUtils::hash_password(password.as_bytes())).await?
     }
 }
 

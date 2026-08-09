@@ -17,7 +17,7 @@ use crate::common::model::Shared;
 use crate::common::tunnel_info::TunnelInfo;
 use crate::config::tunnel::TUNNEL_CLIENT_HEARTBEAT_TIMEOUT;
 use crate::core::message::common::{MessageBuilder, MessageParser};
-use crate::core::message::message::{
+use crate::core::message::types::{
     Message, MessageType, ProxyMessage, ServiceAuth, ServiceMessage,
 };
 use crate::core::message::v1::common::MESSAGE_VERSION_V1;
@@ -101,7 +101,7 @@ pub async fn tunnel_client_control(
             _ = flags.local_cancellation_token.cancelled() => {
                 break;
             },
-            _auth_timedout = sleep_until(if authentication_timeout.is_some() { authentication_timeout.unwrap() } else { Instant::now() + Duration::from_hours(10000) }), if authentication_timeout.is_some() => {
+            _auth_timedout = sleep_until(authentication_timeout.unwrap_or(Instant::now() + Duration::from_hours(10000))), if authentication_timeout.is_some() => {
                 flags.local_cancellation_token.cancel();
                 break;
             },
@@ -315,13 +315,10 @@ pub async fn tunnel_client_control(
     }
 
     //  cleanup
-    match client_type {
-        Some(ClientType::Service) => {
-            let _ = control_message_sender_client
-                .send_message(MessageType::Close, "")
-                .await;
-        }
-        _ => {}
+    if let Some(ClientType::Service) = client_type {
+        let _ = control_message_sender_client
+            .send_message(MessageType::Close, "")
+            .await;
     }
 
     drop(control_message_sender_client);

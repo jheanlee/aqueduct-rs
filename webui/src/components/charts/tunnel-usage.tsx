@@ -20,41 +20,6 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart.tsx";
 import { Line, LineChart, XAxis } from "recharts";
-import { type UsageDataPoint } from "@/services/tunnel/usage.ts";
-import { formatBytes } from "@/lib/format.ts";
-
-export const handleUsageChartDataPoints = (
-  data: UsageDataPoint[],
-  zoom: string,
-) => {
-  const formatTime = (timestamp: Date) => {
-    const pad = (value: number) => {
-      return String(value).padStart(2, "0");
-    };
-
-    switch (zoom) {
-      case "daily":
-        return timestamp.toISOString().substring(11, 16);
-      case "weekly":
-        return `${pad(timestamp.getUTCMonth())}/${pad(timestamp.getUTCDate())} ${pad(timestamp.getUTCHours())}:${pad(timestamp.getUTCMinutes())}`;
-      case "monthly":
-        return `${pad(timestamp.getUTCMonth())}/${pad(timestamp.getUTCDate())}`;
-      case "yearly":
-        return `${pad(timestamp.getUTCMonth())}/${pad(timestamp.getUTCDate())}`;
-    }
-  };
-
-  return data.map((value) => {
-    return {
-      timestamp: formatTime(value.timestamp),
-      inboundBytes: value.inbound,
-      inboundString: formatBytes(value.inbound),
-      outboundBytes: value.outbound,
-      outboundString: formatBytes(value.outbound),
-      connections: value.connections,
-    } as UsageDataPointFormatted;
-  });
-};
 
 export interface UsageDataPointFormatted {
   timestamp: string;

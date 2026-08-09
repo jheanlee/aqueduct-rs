@@ -16,7 +16,7 @@
 
 use crate::common::model::Shared;
 use crate::common::tunnel_info::TunnelInfo;
-use crate::core::message::message::{ClientServiceMessage, MessageType};
+use crate::core::message::types::{ClientServiceMessage, MessageType};
 use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::error::TunnelError::NoPortsAvailable;
 use crate::core::tunnel::message_handler::ControlMessageSenderClient;
@@ -156,14 +156,14 @@ pub async fn tunnel_client_proxy_control(
                                 .unwrap_or_else(|_| unreachable!("Client semaphore should not be dropped"));
 
                             let socket_ref = SockRef::from(&external_client_stream);
-                            socket_ref.set_tcp_nodelay(true).unwrap_or_else(|_| { return; });
-                            socket_ref.set_reuse_address(true).unwrap_or_else(|_| { return; });
+                            socket_ref.set_tcp_nodelay(true).unwrap_or(());
+                            socket_ref.set_reuse_address(true).unwrap_or(());
                             let socket_keep_alive = TcpKeepalive::new()
                                 .with_time(Duration::from_secs(60))
                                 .with_interval(Duration::from_secs(30))
                                 .with_retries(3);
                             socket_ref.set_tcp_keepalive(&socket_keep_alive)
-                                .unwrap_or_else(|_| { return; });
+                                .unwrap_or(());
 
                             //  generate id
                             let id = nanoid!();
@@ -181,9 +181,9 @@ pub async fn tunnel_client_proxy_control(
                                 ProxyClient {
                                     timestamp: Instant::now(),
                                     tunnel_client_user_id: tunnel_client_user_id_clone,
-                                    external_client_stream_rx: external_client_stream_rx,
-                                    external_client_stream_tx: external_client_stream_tx,
-                                    external_client_addr: external_client_addr,
+                                    external_client_stream_rx,
+                                    external_client_stream_tx,
+                                    external_client_addr,
                                     _global_permit: global_permit,
                                     _client_permit: client_permit
                                 }
@@ -247,7 +247,7 @@ pub async fn tunnel_client_proxy(
         outbound.clone(),
     );
 
-    let io_copy = tokio::io::copy_bidirectional_with_sizes(
+    let io_copy = io::copy_bidirectional_with_sizes(
         &mut tunnel_client_io,
         &mut external_client_io,
         BUFFER_SIZE,
@@ -298,8 +298,8 @@ pub async fn tunnel_client_proxy(
                         .send(DatabaseTunnelSessionAction::Update {
                             user_id: proxy_client.tunnel_client_user_id.clone(),
                             tunnel_client: tunnel_client.addr.ip(),
-                            inbound: inbound,
-                            outbound: outbound,
+                            inbound,
+                            outbound,
                             external_connection_count_update: false,
                         })
                         .await; //  only fails when global cancellation token is set

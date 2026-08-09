@@ -17,10 +17,10 @@ use std::fmt::Formatter;
 
 #[derive(Debug, Copy, Clone)]
 pub enum MessageParseError {
-    InvalidLength,
-    InvalidVersion,
-    InvalidType,
-    InvalidString,
+    Length,
+    Version,
+    Type,
+    String,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -32,16 +32,16 @@ pub enum MessageBuildError {
 impl std::fmt::Display for MessageParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            MessageParseError::InvalidLength => {
+            MessageParseError::Length => {
                 write!(f, "invalid length")
             }
-            MessageParseError::InvalidVersion => {
+            MessageParseError::Version => {
                 write!(f, "invalid version")
             }
-            MessageParseError::InvalidType => {
+            MessageParseError::Type => {
                 write!(f, "invalid type")
             }
-            MessageParseError::InvalidString => {
+            MessageParseError::String => {
                 write!(f, "invalid string")
             }
         }

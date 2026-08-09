@@ -32,7 +32,7 @@ export const get_system_status = async () => {
       : null;
 
     return res.data;
-  } catch (error) {
+  } catch {
     return {
       cpu_usage: null,
       used_memory: null,
@@ -53,7 +53,7 @@ export const get_tunnel_status = async () => {
     }>("/api/status/tunnel");
 
     return res.data;
-  } catch (error) {
+  } catch {
     return {
       uptime: null,
       active_service_count: null,

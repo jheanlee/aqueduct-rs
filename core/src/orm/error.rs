@@ -22,8 +22,8 @@ pub enum Error {
     Unauthorized,
     Conflict,
     BadRequest,
-    DatabaseError(sea_orm::DbErr),
-    CommonError(crate::common::error::Error),
+    Database(sea_orm::DbErr),
+    Common(crate::common::error::Error),
 }
 
 impl std::fmt::Display for Error {
@@ -33,8 +33,8 @@ impl std::fmt::Display for Error {
             Self::Unauthorized => write!(f, "Unauthorized"),
             Self::Conflict => write!(f, "Conflict"),
             Self::BadRequest => write!(f, "Bad request"),
-            Self::DatabaseError(error) => write!(f, "DbErr: {error}"),
-            Self::CommonError(error) => write!(f, "{error}"),
+            Self::Database(error) => write!(f, "DbErr: {error}"),
+            Self::Common(error) => write!(f, "{error}"),
         }
     }
 }
@@ -48,20 +48,20 @@ impl IntoResponse for Error {
             Error::Unauthorized => StatusCode::UNAUTHORIZED.into_response(),
             Error::Conflict => StatusCode::CONFLICT.into_response(),
             Error::BadRequest => StatusCode::BAD_REQUEST.into_response(),
-            Error::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-            Error::CommonError(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            Error::Database(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            Error::Common(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }
 }
 
 impl From<sea_orm::DbErr> for Error {
     fn from(error: sea_orm::DbErr) -> Self {
-        Self::DatabaseError(error)
+        Self::Database(error)
     }
 }
 
 impl From<crate::common::error::Error> for Error {
     fn from(error: crate::common::error::Error) -> Self {
-        Self::CommonError(error)
+        Self::Common(error)
     }
 }
