@@ -48,7 +48,7 @@ export const getTunnelUsage = async (
   try {
     const res = await cronFetcher.get<{
       usage_data_points: {
-        bucket: string;
+        bucket: number;
         external_connection_count: number;
         inbound: number;
         outbound: number;
@@ -62,7 +62,7 @@ export const getTunnelUsage = async (
     });
     return res.data.usage_data_points.map((value) => {
       return {
-        timestamp: new Date(value.bucket),
+        timestamp: new Date(value.bucket * 1000),
         connections: value.external_connection_count,
         inbound: value.inbound,
         outbound: value.outbound,

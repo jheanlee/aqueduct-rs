@@ -126,7 +126,7 @@ export const TunnelUsageConnectionsChart = ({
 }: TunnelUsageConnectionsChartProps) => {
   const chartConfig = {
     connections: {
-      label: "Connections",
+      label: "New Connections",
       color: "var(--chart-1)",
     },
   };
@@ -160,3 +160,5 @@ export const TunnelUsageConnectionsChart = ({
     </ChartContainer>
   );
 };
+
+//  TODO add concurrent connections for accuracy
