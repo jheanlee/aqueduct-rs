@@ -17,7 +17,7 @@ use chrono::{DateTime, NaiveDateTime};
 use entity::entities::tunnel_sessions::{ActiveModel, Column, Entity};
 use sea_orm::prelude::Expr;
 use sea_orm::sea_query::OnConflict;
-use sea_orm::{DatabaseConnection, EntityTrait, ExprTrait, Iden, Set};
+use sea_orm::{DatabaseConnection, DbBackend, EntityTrait, ExprTrait, Iden, QueryTrait, Set};
 use std::collections::HashMap;
 use std::mem::take;
 use std::net::IpAddr;
@@ -27,7 +27,7 @@ use tokio::task::JoinSet;
 use tokio::time::{Instant, sleep_until, timeout};
 use tokio::{join, select};
 use tokio_util::sync::CancellationToken;
-use tracing::{instrument, warn};
+use tracing::{debug, instrument, warn};
 
 pub enum DatabaseTunnelSessionAction {
     Update {
@@ -125,30 +125,36 @@ async fn flush_to_database(
         let table_name = Entity.to_string();
         let models: Vec<ActiveModel> = update_map.into_values().collect();
 
-        let res = Entity::insert_many(models)
-            .on_conflict(
-                OnConflict::columns([Column::UserId, Column::TunnelClient, Column::BucketStart])
-                    .values([
-                        (
-                            Column::Inbound,
-                            Expr::cust(format!("\"{table_name}\".\"inbound\""))
-                                .add(Expr::cust("EXCLUDED.\"inbound\"")),
-                        ),
-                        (
-                            Column::Outbound,
-                            Expr::cust(format!("\"{table_name}\".\"outbound\""))
-                                .add(Expr::cust("EXCLUDED.\"outbound\"")),
-                        ),
-                        (
-                            Column::ExternalConnectionCount,
-                            Expr::cust(format!("\"{table_name}\".\"external_connection_count\""))
-                                .add(Expr::cust("EXCLUDED.\"external_connection_count\"")),
-                        ),
-                    ])
-                    .clone(),
-            )
-            .exec(&db_connection)
-            .await;
+        debug!("Flushing session records to database");
+
+        let statement = Entity::insert_many(models).on_conflict(
+            OnConflict::columns([Column::UserId, Column::TunnelClient, Column::BucketStart])
+                .values([
+                    (
+                        Column::Inbound,
+                        Expr::cust(format!("\"{table_name}\".\"inbound\""))
+                            .add(Expr::cust("EXCLUDED.\"inbound\"")),
+                    ),
+                    (
+                        Column::Outbound,
+                        Expr::cust(format!("\"{table_name}\".\"outbound\""))
+                            .add(Expr::cust("EXCLUDED.\"outbound\"")),
+                    ),
+                    (
+                        Column::ExternalConnectionCount,
+                        Expr::cust(format!("\"{table_name}\".\"external_connection_count\""))
+                            .add(Expr::cust("EXCLUDED.\"external_connection_count\"")),
+                    ),
+                ])
+                .clone(),
+        );
+
+        debug!(
+            "db statement: \n{}",
+            statement.build(DbBackend::Postgres).to_string()
+        );
+
+        let res = statement.exec(&db_connection).await;
 
         if let Err(error) = res {
             warn!("Unable to update database: {:?}", error);

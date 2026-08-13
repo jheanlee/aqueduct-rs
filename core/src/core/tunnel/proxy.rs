@@ -39,7 +39,7 @@ use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
-use tokio::time::{Instant, sleep_until};
+use tokio::time::{Instant, interval, sleep_until};
 use tokio::{io, select};
 use tokio_util::future::FutureExt;
 use tracing::{debug, info, instrument, warn};
@@ -236,8 +236,9 @@ pub async fn tunnel_client_proxy(
     //  usage counter
     let inbound = Arc::new(AtomicI64::new(0));
     let outbound = Arc::new(AtomicI64::new(0));
+
     const COUNTER_UPDATE_INTERVAL: u64 = 60;
-    let mut next_deadline = Instant::now() + Duration::from_secs(COUNTER_UPDATE_INTERVAL);
+    let mut timer_interval = interval(Duration::from_secs(COUNTER_UPDATE_INTERVAL));
 
     let (tunnel_client_rx, tunnel_client_tx) = io::split(tunnel_client.stream);
 
@@ -260,7 +261,6 @@ pub async fn tunnel_client_proxy(
 
     loop {
         select! {
-            biased;
             _ = flags.local_cancellation_token.cancelled() => {
                 break;
             }
@@ -290,7 +290,7 @@ pub async fn tunnel_client_proxy(
                 }
                 break;
             }
-            _ = sleep_until(next_deadline) => {
+            _ = timer_interval.tick() => {
                 let inbound = inbound.swap(0, Ordering::Relaxed);
                 let outbound = outbound.swap(0, Ordering::Relaxed);
                 if inbound != 0 || outbound != 0 {
@@ -306,7 +306,6 @@ pub async fn tunnel_client_proxy(
                         })
                         .await; //  only fails when global cancellation token is set
                 }
-                next_deadline = Instant::now() + Duration::from_secs(COUNTER_UPDATE_INTERVAL);
             }
         }
     }
