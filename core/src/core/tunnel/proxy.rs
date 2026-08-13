@@ -25,6 +25,7 @@ use crate::core::tunnel::proxy_io::ProxyIO;
 use crate::orm::tunnel_session::DatabaseTunnelSessionAction;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
+use chrono::Utc;
 use hmac::{Hmac, KeyInit, Mac};
 use nanoid::nanoid;
 use rand::{RngExt, rng};
@@ -235,7 +236,7 @@ pub async fn tunnel_client_proxy(
     //  usage counter
     let inbound = Arc::new(AtomicI64::new(0));
     let outbound = Arc::new(AtomicI64::new(0));
-    const COUNTER_UPDATE_INTERVAL: u64 = 300;
+    const COUNTER_UPDATE_INTERVAL: u64 = 60;
     let mut next_deadline = Instant::now() + Duration::from_secs(COUNTER_UPDATE_INTERVAL);
 
     let (tunnel_client_rx, tunnel_client_tx) = io::split(tunnel_client.stream);
@@ -296,6 +297,7 @@ pub async fn tunnel_client_proxy(
                     let _ = shared
                         .database_tunnel_session_batch_tx
                         .send(DatabaseTunnelSessionAction::Update {
+                            timestamp: Utc::now().naive_utc(),
                             user_id: proxy_client.tunnel_client_user_id.clone(),
                             tunnel_client: tunnel_client.addr.ip(),
                             inbound,
@@ -315,6 +317,7 @@ pub async fn tunnel_client_proxy(
     let _ = shared
         .database_tunnel_session_batch_tx
         .send(DatabaseTunnelSessionAction::Update {
+            timestamp: Utc::now().naive_utc(),
             user_id: proxy_client.tunnel_client_user_id.clone(),
             tunnel_client: tunnel_client.addr.ip(),
             inbound: inbound.swap(0, Ordering::Relaxed),
