@@ -21,7 +21,7 @@ use axum::extract::{Path, Query, State};
 use axum::http;
 use axum::response::Response;
 use chrono::NaiveDateTime;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, to_string};
 use std::sync::Arc;
 
@@ -32,18 +32,35 @@ pub struct GetTunnelUsageQuery {
     pub query_end: NaiveDateTime,
 }
 
+#[derive(Serialize)]
+pub struct TunnelUsagePointSafe {
+    pub bucket: i64,
+    pub inbound: i64,
+    pub outbound: i64,
+    pub external_connection_count: i64,
+}
+
 pub async fn get_tunnel_usage_overall(
     State(api_state): State<Arc<ApiState>>,
     Query(body): Query<GetTunnelUsageQuery>,
 ) -> Result<Response<Body>, Error> {
-    let usage_points = get_tunnel_usage_data(
+    let usage_points: Vec<TunnelUsagePointSafe> = get_tunnel_usage_data(
         api_state.shared.db_connection.clone(),
         None,
         body.resolution,
         body.query_start,
         body.query_end,
     )
-    .await?;
+    .await?
+    .iter()
+    .map(|v| TunnelUsagePointSafe {
+        bucket: v.bucket.and_utc().timestamp(),
+        inbound: v.inbound,
+        outbound: v.outbound,
+        external_connection_count: v.external_connection_count,
+    })
+    .collect();
+
     let response_builder =
         Response::builder().header(http::header::CONTENT_TYPE, "application/json");
     let response_body = Body::from(to_string(&json!({
@@ -61,14 +78,22 @@ pub async fn get_tunnel_usage_by_user(
     Path(path): Path<GetTunnelUsageByUserPath>,
     Query(body): Query<GetTunnelUsageQuery>,
 ) -> Result<Response<Body>, Error> {
-    let usage_points = get_tunnel_usage_data(
+    let usage_points: Vec<TunnelUsagePointSafe> = get_tunnel_usage_data(
         api_state.shared.db_connection.clone(),
         Some(path.id),
         body.resolution,
         body.query_start,
         body.query_end,
     )
-    .await?;
+    .await?
+    .iter()
+    .map(|v| TunnelUsagePointSafe {
+        bucket: v.bucket.and_utc().timestamp(),
+        inbound: v.inbound,
+        outbound: v.outbound,
+        external_connection_count: v.external_connection_count,
+    })
+    .collect();
     let response_builder =
         Response::builder().header(http::header::CONTENT_TYPE, "application/json");
     let response_body = Body::from(to_string(&json!({

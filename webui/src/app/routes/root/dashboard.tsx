@@ -177,7 +177,7 @@ export const Dashboard = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-1">
-          <p>{`Global CPU usage: ${systemStatus.cpu_usage !== null ? systemStatus.cpu_usage.toFixed(1) : "N/A"}`}</p>
+          <p>{`Global CPU usage: ${systemStatus.cpu_usage !== null ? systemStatus.cpu_usage.toFixed(1) : "N/A"}%`}</p>
           <p>{`Global memory usage: ${systemStatus.used_memory !== null ? formatBytes(systemStatus.used_memory) : "N/A "}/${systemStatus.total_memory !== null ? formatBytes(systemStatus.total_memory) : " N/A"}`}</p>
           <p>{`Process CPU usage: ${systemStatus.process_cpu_usage !== null ? systemStatus.process_cpu_usage.toFixed(1) : "N/A"}`}</p>
           <p>{`Process memory usage (RSS): ${systemStatus.process_memory !== null ? formatBytes(systemStatus.process_memory) : "N/A"}`}</p>

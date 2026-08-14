@@ -21,14 +21,32 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::{Json, http};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, to_string};
 use std::sync::Arc;
 
+#[derive(Serialize)]
+pub struct ListUserPartialModelSafe {
+    pub id: String,
+    pub username: String,
+    pub label: Vec<String>,
+    pub last_login: i64,
+    pub administrator: bool,
+}
 pub async fn list_tunnel_users(
     State(api_state): State<Arc<ApiState>>,
 ) -> Result<Response<Body>, Error> {
-    let users = list_users(api_state.shared.db_connection.clone()).await?;
+    let users: Vec<ListUserPartialModelSafe> = list_users(api_state.shared.db_connection.clone())
+        .await?
+        .into_iter()
+        .map(|v| ListUserPartialModelSafe {
+            id: v.id,
+            username: v.username,
+            label: v.label,
+            last_login: v.last_login.and_utc().timestamp(),
+            administrator: v.administrator,
+        })
+        .collect();
     let response_builder =
         Response::builder().header(http::header::CONTENT_TYPE, "application/json");
     Ok(response_builder.body(Body::from(to_string(&users)?))?)

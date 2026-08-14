@@ -54,7 +54,7 @@ export const Users = () => {
         id: string;
         username: string;
         label: string[];
-        last_login: string;
+        last_login: Date;
         administrator: boolean;
       }[]
     | null
@@ -121,7 +121,7 @@ export const Users = () => {
                       </div>
                     </TableCell>
                     <TableCell className="transition-colors group-hover:bg-muted/50">
-                      {item.last_login}
+                      {item.last_login.toISOString()}
                     </TableCell>
                     <TableCell className="sticky right-0 z-10 bg-background transition-colors group-hover:bg-muted/50">
                       <div className="flex flex-row gap-1 justify-end">

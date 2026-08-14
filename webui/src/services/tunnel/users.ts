@@ -27,11 +27,20 @@ export const getTunnelUsers = async () => {
         id: string;
         username: string;
         label: string[];
-        last_login: string;
+        last_login: number;
         administrator: boolean;
       }[]
     >("/api/tunnel/users");
-    return users.data;
+
+    return users.data.map((value) => {
+      return {
+        id: value.id,
+        username: value.username,
+        label: value.label,
+        last_login: new Date(value.last_login * 1000),
+        administrator: value.administrator,
+      };
+    });
   } catch (error) {
     console.log(`Failed to get users: ${error}`);
     return null;

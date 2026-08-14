@@ -16,7 +16,7 @@
 use crate::orm::error::Error;
 use chrono::{DateTime, Duration, NaiveDateTime};
 use sea_orm::{DatabaseBackend, DatabaseConnection, FromQueryResult, Statement};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -27,7 +27,7 @@ pub enum TimestampBucketSize {
     Weekly,
 }
 
-#[derive(Debug, FromQueryResult, Serialize, Deserialize)]
+#[derive(Debug, FromQueryResult)]
 pub struct TunnelUsagePoint {
     pub bucket: NaiveDateTime,
     pub inbound: i64,

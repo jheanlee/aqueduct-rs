@@ -40,7 +40,7 @@ export const NavSidebar = () => {
   return (
     <div>
       <Sidebar collapsible="offcanvas" variant="inset">
-        <SidebarHeader>{/* TODO: Icon */}</SidebarHeader>
+        <SidebarHeader></SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
             <SidebarGroupContent>

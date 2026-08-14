@@ -30,6 +30,7 @@ use crate::core::tunnel::proxy::{tunnel_client_proxy, tunnel_client_proxy_contro
 use crate::orm::tunnel_session::DatabaseTunnelSessionAction;
 use crate::orm::tunnel_user::{authenticate_tunnel_token, authenticate_tunnel_user};
 use axum::body::Bytes;
+use chrono::Utc;
 use futures::stream::SplitSink;
 use futures::{SinkExt, StreamExt};
 use std::net::SocketAddr;
@@ -270,6 +271,7 @@ pub async fn tunnel_client_control(
                         //  database
                         if let Err(error) = shared.database_tunnel_session_batch_tx.send(
                             DatabaseTunnelSessionAction::Update {
+                                timestamp: Utc::now().naive_utc(),
                                 user_id: proxy_client.tunnel_client_user_id.clone(),
                                 tunnel_client: tunnel_client_addr.ip(),
                                 inbound: 0,
