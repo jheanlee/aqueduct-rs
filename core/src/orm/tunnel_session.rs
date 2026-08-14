@@ -17,7 +17,7 @@ use chrono::{DateTime, NaiveDateTime};
 use entity::entities::tunnel_sessions::{ActiveModel, Column, Entity};
 use sea_orm::prelude::Expr;
 use sea_orm::sea_query::OnConflict;
-use sea_orm::{DatabaseConnection, DbBackend, EntityTrait, ExprTrait, Iden, QueryTrait, Set};
+use sea_orm::{DatabaseConnection, EntityTrait, ExprTrait, Iden, Set};
 use std::collections::HashMap;
 use std::mem::take;
 use std::net::IpAddr;
