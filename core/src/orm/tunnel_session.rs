@@ -149,11 +149,6 @@ async fn flush_to_database(
                 .clone(),
         );
 
-        debug!(
-            "db statement: \n{}",
-            statement.build(DbBackend::Postgres).to_string()
-        );
-
         let res = statement.exec(&db_connection).await;
 
         if let Err(error) = res {
