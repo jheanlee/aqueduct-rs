@@ -22,11 +22,14 @@ import {
   CardTitle,
 } from "@/components/ui/card.tsx";
 import { useEffect, useState } from "react";
-import { get_system_status, get_tunnel_status } from "@/services/status.ts";
+import {
+  getRealtimeSystemStatus,
+  getRealtimeTunnelStatus,
+  getTunnelStatus,
+} from "@/services/status.ts";
 import {
   TunnelUsageConnectionsChart,
   TunnelUsageIOChart,
-  type UsageDataPointFormatted,
 } from "@/components/charts/tunnel-usage.tsx";
 import { getTunnelUsage } from "@/services/tunnel/usage.ts";
 import { toast } from "sonner";
@@ -39,7 +42,18 @@ import {
   SelectValue,
 } from "@/components/ui/select.tsx";
 import { formatBytes, formatTimeFromSeconds } from "@/lib/format.ts";
-import { handleUsageChartDataPoints } from "@/components/charts/tunnel-usage-utils.ts";
+import {
+  handleUsageChartDataPoints,
+  type UsageDataPointFormatted,
+} from "@/components/charts/tunnel-usage-utils.ts";
+import {
+  handleStatusChartDataPoints,
+  type StatusDataPointFormatted,
+} from "@/components/charts/tunnel-status-utils.ts";
+import {
+  TunnelStatusConnectionChart,
+  TunnelStatusServiceChart,
+} from "@/components/charts/tunnel-status.tsx";
 
 export const Dashboard = () => {
   const [systemStatus, setSystemStatus] = useState<{
@@ -71,6 +85,9 @@ export const Dashboard = () => {
     UsageDataPointFormatted[]
   >([]);
   const [usageChartZoom, setUsageChartZoom] = useState<string>("daily");
+  const [statusChartData, setStatusChartData] = useState<
+    StatusDataPointFormatted[]
+  >([]);
 
   const usageChartZoomSelectItems = [
     { label: "Last 24 hours", value: "daily" },
@@ -82,8 +99,8 @@ export const Dashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       const [tunnel, system] = await Promise.all([
-        get_tunnel_status(),
-        get_system_status(),
+        getRealtimeTunnelStatus(),
+        getRealtimeSystemStatus(),
       ]);
       setTunnelStatus(tunnel);
       setSystemStatus(system);
@@ -129,7 +146,7 @@ export const Dashboard = () => {
       }
     };
 
-    const fetchData = async () => {
+    const fetchUsageData = async () => {
       const res = await getTunnelUsage(
         null,
         new Date(getQueryStart(dateNow)),
@@ -143,13 +160,28 @@ export const Dashboard = () => {
       }
     };
 
-    const updateChartTimer = async () => {
-      if (new Date().getMinutes() % 10 === 0) {
-        await fetchData();
+    const fetchStatusData = async () => {
+      const res = await getTunnelStatus(
+        new Date(getQueryStart(dateNow)),
+        new Date(dateNow),
+        getResolution(usageChartZoom),
+      );
+
+      if (typeof res === "number") {
+        toast.error(`An error has occurred. Error code: ${res}`);
+      } else {
+        setStatusChartData(handleStatusChartDataPoints(res, usageChartZoom));
       }
     };
 
-    void fetchData();
+    const updateChartTimer = async () => {
+      if (new Date().getMinutes() % 10 === 0) {
+        await Promise.all([fetchUsageData(), fetchStatusData()]);
+      }
+    };
+
+    void fetchUsageData();
+    void fetchStatusData();
 
     const intervalID = setInterval(updateChartTimer, 60 * 1000);
     return () => clearInterval(intervalID);
@@ -209,12 +241,20 @@ export const Dashboard = () => {
             </SelectContent>
           </Select>
           <div className="grid grid-cols-1 md:grid-cols-2">
-            <div className="px-4">
-              <p className="font-semibold">Tunnelled IO</p>
+            <div className="p-4">
+              <p className="font-semibold">Throughput</p>
               <TunnelUsageIOChart chartData={usageChartData} />
             </div>
-            <div className="px-4">
-              <p className="font-semibold">Connections</p>
+            <div className="p-4">
+              <p className="font-semibold">Concurrent Services</p>
+              <TunnelStatusServiceChart chartData={statusChartData} />
+            </div>
+            <div className="p-4">
+              <p className="font-semibold">Concurrent External Connections</p>
+              <TunnelStatusConnectionChart chartData={statusChartData} />
+            </div>
+            <div className="p-4">
+              <p className="font-semibold">New External Connections</p>
               <TunnelUsageConnectionsChart chartData={usageChartData} />
             </div>
           </div>

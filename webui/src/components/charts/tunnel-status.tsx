@@ -14,112 +14,32 @@
  * limitations under the License.
  */
 
+import type { StatusDataPointFormatted } from "@/components/charts/tunnel-status-utils.ts";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart.tsx";
 import { Line, LineChart, XAxis } from "recharts";
-import type { UsageDataPointFormatted } from "@/components/charts/tunnel-usage-utils.ts";
 
-interface TunnelUsageIOChartProps {
-  chartData: Omit<UsageDataPointFormatted, "connections">[];
-}
-
-export const TunnelUsageIOChart = ({ chartData }: TunnelUsageIOChartProps) => {
-  const chartConfig = {
-    inboundBytes: {
-      label: "Inbound",
-      color: "var(--chart-1)",
-    },
-    outboundBytes: {
-      label: "Outbound",
-      color: "var(--chart-2)",
-    },
-  };
-
-  return (
-    <ChartContainer config={chartConfig}>
-      <LineChart
-        data={chartData}
-        margin={{
-          left: 12,
-          right: 12,
-        }}
-      >
-        <XAxis
-          dataKey="timestamp"
-          tickLine={false}
-          tickMargin={10}
-          axisLine={false}
-        />
-
-        <ChartTooltip
-          cursor={false}
-          content={(props) => {
-            if (!props.active || !props.payload?.length) {
-              return null;
-            }
-
-            const modifiedPayload = props.payload.map((item) => {
-              return {
-                ...item,
-                value: (() => {
-                  if (item.dataKey === "inboundBytes") {
-                    return item.payload.inboundString;
-                  }
-                  if (item.dataKey === "outboundBytes") {
-                    return item.payload.outboundString;
-                  }
-                  return item.value;
-                })(),
-              };
-            });
-
-            return (
-              <ChartTooltipContent
-                active={props.active}
-                payload={modifiedPayload}
-                label={props.label}
-              />
-            );
-          }}
-        />
-
-        <Line
-          dataKey="inboundBytes"
-          type="monotone"
-          stroke="var(--color-inboundBytes)"
-          strokeWidth={2}
-          dot={false}
-        />
-
-        <Line
-          dataKey="outboundBytes"
-          type="monotone"
-          stroke="var(--color-outboundBytes)"
-          strokeWidth={2}
-          dot={false}
-        />
-      </LineChart>
-    </ChartContainer>
-  );
-};
-
-interface TunnelUsageConnectionsChartProps {
+interface TunnelStatusServiceChartProps {
   chartData: Omit<
-    UsageDataPointFormatted,
-    "inboundBytes" | "inboundString" | "outboundBytes" | "outboundString"
+    StatusDataPointFormatted,
+    "externalConnectionAvg" | "externalConnectionMax"
   >[];
 }
 
-export const TunnelUsageConnectionsChart = ({
+export const TunnelStatusServiceChart = ({
   chartData,
-}: TunnelUsageConnectionsChartProps) => {
+}: TunnelStatusServiceChartProps) => {
   const chartConfig = {
-    connections: {
-      label: "New Connections",
+    activeServiceAvg: {
+      label: "Average Services",
       color: "var(--chart-1)",
+    },
+    activeServiceMax: {
+      label: "Maximum Services",
+      color: "var(--chart-2)",
     },
   };
 
@@ -142,9 +62,76 @@ export const TunnelUsageConnectionsChart = ({
         <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
 
         <Line
-          dataKey="connections"
+          dataKey="activeServiceAvg"
           type="monotone"
-          stroke="var(--color-connections)"
+          stroke="var(--color-activeServiceAvg)"
+          strokeWidth={2}
+          dot={false}
+        />
+
+        <Line
+          dataKey="activeServiceMax"
+          type="monotone"
+          stroke="var(--color-activeServiceMax)"
+          strokeWidth={2}
+          dot={false}
+        />
+      </LineChart>
+    </ChartContainer>
+  );
+};
+
+interface TunnelStatusConnectionChartProps {
+  chartData: Omit<
+    StatusDataPointFormatted,
+    "activeServiceMax" | "activeServiceAvg"
+  >[];
+}
+
+export const TunnelStatusConnectionChart = ({
+  chartData,
+}: TunnelStatusConnectionChartProps) => {
+  const chartConfig = {
+    externalConnectionAvg: {
+      label: "Average Connections",
+      color: "var(--chart-1)",
+    },
+    externalConnectionMax: {
+      label: "Maximum Connections",
+      color: "var(--chart-2)",
+    },
+  };
+
+  return (
+    <ChartContainer config={chartConfig}>
+      <LineChart
+        data={chartData}
+        margin={{
+          left: 12,
+          right: 12,
+        }}
+      >
+        <XAxis
+          dataKey="timestamp"
+          tickLine={false}
+          tickMargin={10}
+          axisLine={false}
+        />
+
+        <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+
+        <Line
+          dataKey="externalConnectionAvg"
+          type="monotone"
+          stroke="var(--color-externalConnectionAvg)"
+          strokeWidth={2}
+          dot={false}
+        />
+
+        <Line
+          dataKey="externalConnectionMax"
+          type="monotone"
+          stroke="var(--color-externalConnectionMax)"
           strokeWidth={2}
           dot={false}
         />

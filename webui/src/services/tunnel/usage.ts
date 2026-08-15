@@ -24,7 +24,7 @@ export interface UsageDataPoint {
   connections: number;
 }
 
-export type TunnelUsageResolution =
+export type TunnelChartResolution =
   | "ten_minutes"
   | "hourly"
   | "daily"
@@ -34,7 +34,7 @@ export const getTunnelUsage = async (
   user_id: string | null,
   start: Date,
   end: Date,
-  resolution: TunnelUsageResolution,
+  resolution: TunnelChartResolution,
 ) => {
   const uri =
     user_id === null ? "/api/tunnel/usage" : `/api/tunnel/usage/${user_id}`;
@@ -69,7 +69,7 @@ export const getTunnelUsage = async (
       } as UsageDataPoint;
     });
   } catch (error) {
-    console.log(`Failed to edit user: ${error}`);
+    console.log(`Failed to get usage: ${error}`);
     if (isAxiosError(error)) {
       return error.status || 500;
     } else {

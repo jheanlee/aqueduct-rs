@@ -14,30 +14,28 @@
  * limitations under the License.
  */
 
-import { type UsageDataPoint } from "@/services/tunnel/usage.ts";
-import { formatBytes, formatTimeWithZoom } from "@/lib/format.ts";
+import type { StatusDataPoint } from "@/services/status.ts";
+import { formatTimeWithZoom } from "@/lib/format.ts";
 
-export interface UsageDataPointFormatted {
+export interface StatusDataPointFormatted {
   timestamp: string;
-  inboundBytes: number;
-  inboundString: string;
-  outboundBytes: number;
-  outboundString: string;
-  connections: number;
+  activeServiceAvg: number;
+  activeServiceMax: number;
+  externalConnectionAvg: number;
+  externalConnectionMax: number;
 }
 
-export const handleUsageChartDataPoints = (
-  data: UsageDataPoint[],
+export const handleStatusChartDataPoints = (
+  data: StatusDataPoint[],
   zoom: string,
 ) => {
   return data.map((value) => {
     return {
       timestamp: formatTimeWithZoom(value.timestamp, zoom),
-      inboundBytes: value.inbound,
-      inboundString: formatBytes(value.inbound),
-      outboundBytes: value.outbound,
-      outboundString: formatBytes(value.outbound),
-      connections: value.connections,
-    } as UsageDataPointFormatted;
+      activeServiceAvg: value.activeServiceAvg,
+      activeServiceMax: value.activeServiceMax,
+      externalConnectionAvg: value.externalConnectionAvg,
+      externalConnectionMax: value.externalConnectionMax,
+    } as StatusDataPointFormatted;
   });
 };

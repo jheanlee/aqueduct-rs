@@ -39,3 +39,20 @@ export const formatTimeFromSeconds = (time: number) => {
 
   return parts.filter(Boolean).join(" ");
 };
+
+export const formatTimeWithZoom = (timestamp: Date, zoom: string) => {
+  const pad = (value: number) => {
+    return String(value).padStart(2, "0");
+  };
+
+  switch (zoom) {
+    case "daily":
+      return timestamp.toISOString().substring(11, 16);
+    case "weekly":
+      return `${pad(timestamp.getUTCMonth() + 1)}/${pad(timestamp.getUTCDate())} ${pad(timestamp.getUTCHours())}:${pad(timestamp.getUTCMinutes())}`;
+    case "monthly":
+      return `${pad(timestamp.getUTCMonth() + 1)}/${pad(timestamp.getUTCDate())}`;
+    case "yearly":
+      return `${pad(timestamp.getUTCMonth() + 1)}/${pad(timestamp.getUTCDate())}`;
+  }
+};
