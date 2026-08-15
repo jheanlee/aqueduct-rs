@@ -15,6 +15,7 @@
  */
 use chrono::{DateTime, NaiveDateTime};
 use entity::entities::tunnel_sessions::{ActiveModel, Column, Entity};
+use nanoid::nanoid;
 use sea_orm::prelude::Expr;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{DatabaseConnection, EntityTrait, ExprTrait, Iden, Set};
@@ -27,7 +28,7 @@ use tokio::task::JoinSet;
 use tokio::time::{Instant, sleep_until, timeout};
 use tokio::{join, select};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, debug_span, instrument, warn};
 
 pub enum DatabaseTunnelSessionAction {
     Update {
@@ -76,7 +77,7 @@ pub async fn database_tunnel_session_batch_task(
                 match request {
                     Some(DatabaseTunnelSessionAction::Update { timestamp, user_id, tunnel_client, inbound, outbound, external_connection_count_update }) => {
                         update_map
-                            .entry((round_to_bucket_time(timestamp, BUCKET_SIZE_MIN as i64), user_id.clone(), tunnel_client))
+                            .entry((round_to_bucket_time(timestamp, BUCKET_SIZE_MIN), user_id.clone(), tunnel_client))
                             .and_modify(|v| {
                                 v.inbound = Set(v.inbound.try_as_ref().unwrap() + inbound);
                                 v.outbound = Set(v.outbound.try_as_ref().unwrap() + outbound);
@@ -85,7 +86,7 @@ pub async fn database_tunnel_session_batch_task(
                             .or_insert(ActiveModel {
                                 id: Default::default(),
                                 user_id: Set(Some(user_id)),
-                                bucket_start: Set(round_to_bucket_time(timestamp, BUCKET_SIZE_MIN as i64)),
+                                bucket_start: Set(round_to_bucket_time(timestamp, BUCKET_SIZE_MIN)),
                                 tunnel_client: Set(sea_orm::prelude::IpNetwork::new(tunnel_client, 32).unwrap()),
                                 inbound: Set(inbound),
                                 outbound: Set(outbound),
@@ -121,11 +122,13 @@ async fn flush_to_database(
     db_connection: DatabaseConnection,
     update_map: HashMap<(NaiveDateTime, String, IpAddr), ActiveModel>,
 ) {
+    let flush_span = debug_span!("session_records_database_flush", random_id = nanoid!());
+
     if !update_map.is_empty() {
         let table_name = Entity.to_string();
         let models: Vec<ActiveModel> = update_map.into_values().collect();
 
-        debug!("Flushing session records to database");
+        flush_span.in_scope(|| debug!("Flushing session records to database"));
 
         let statement = Entity::insert_many(models).on_conflict(
             OnConflict::columns([Column::UserId, Column::TunnelClient, Column::BucketStart])
@@ -151,16 +154,18 @@ async fn flush_to_database(
 
         let res = statement.exec(&db_connection).await;
 
+        flush_span.in_scope(|| debug!("Session records flushed to database"));
+
         if let Err(error) = res {
-            warn!("Unable to update database: {:?}", error);
+            flush_span.in_scope(|| warn!("Unable to update database: {:?}", error));
         }
     }
 }
 
-fn round_to_bucket_time(time: NaiveDateTime, bucket_size_minutes: i64) -> NaiveDateTime {
+pub fn round_to_bucket_time(time: NaiveDateTime, bucket_size_minutes: u32) -> NaiveDateTime {
     //  round down
-    let rounded_time_seconds =
-        time.and_utc().timestamp() / (bucket_size_minutes * 60) * (bucket_size_minutes * 60);
+    let rounded_time_seconds = time.and_utc().timestamp() / (bucket_size_minutes as i64 * 60)
+        * (bucket_size_minutes as i64 * 60);
     DateTime::from_timestamp_secs(rounded_time_seconds)
         .expect("Timestamp out of range")
         .naive_utc()

@@ -35,3 +35,4 @@ macro_rules! include_up_migration {
 pub const BOOTSTRAP_SQL: &str =
     include_str!("../../../migration/src/migrations_raw_sql/bootstrap.sql");
 pub const MIGRATION_001: Migration = include_up_migration!("Migration20260806140916");
+pub const MIGRATION_002: Migration = include_up_migration!("Migration20260815064212");

@@ -14,13 +14,29 @@
  * limitations under the License.
  */
 
-pub mod blacklist;
-pub mod error;
-#[cfg(feature = "migration")]
-pub mod mikro_orm_migrations;
-pub mod settings;
-pub mod tunnel_session;
-pub mod tunnel_status;
-pub mod tunnel_user;
-pub mod usage_data;
-pub mod whitelist;
+import { Entity, PrimaryKey, Property, Unique } from "@mikro-orm/core";
+
+@Entity()
+export class TunnelStatus {
+  @PrimaryKey({ type: "bigint", autoincrement: true })
+  id!: string;
+
+  @Unique()
+  @Property({ type: "timestamp" })
+  bucketStart!: string;
+
+  @Property({ type: "bigint" })
+  sampleCount!: string;
+
+  @Property({ type: "bigint" })
+  activeServiceAvg!: string;
+
+  @Property({ type: "bigint" })
+  activeServiceMax!: string;
+
+  @Property({ type: "bigint" })
+  externalConnectionAvg!: string;
+
+  @Property({ type: "bigint" })
+  externalConnectionMax!: string;
+}

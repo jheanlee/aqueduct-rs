@@ -21,4 +21,5 @@ pub use super::ip_whitelist::Entity as IpWhitelist;
 pub use super::mikro_orm_migrations::Entity as MikroOrmMigrations;
 pub use super::settings::Entity as Settings;
 pub use super::tunnel_sessions::Entity as TunnelSessions;
+pub use super::tunnel_status::Entity as TunnelStatus;
 pub use super::tunnel_users::Entity as TunnelUsers;

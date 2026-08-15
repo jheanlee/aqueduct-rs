@@ -27,6 +27,35 @@ pub enum TimestampBucketSize {
     Weekly,
 }
 
+impl TimestampBucketSize {
+    pub fn as_str(&self) -> &str {
+        match self {
+            TimestampBucketSize::TenMinutes => "10 minutes",
+            TimestampBucketSize::Hourly => "1 hour",
+            TimestampBucketSize::Daily => "1 day",
+            TimestampBucketSize::Weekly => "7 days",
+        }
+    }
+
+    pub fn as_duration(&self) -> Duration {
+        match self {
+            TimestampBucketSize::TenMinutes => Duration::minutes(10),
+            TimestampBucketSize::Hourly => Duration::hours(1),
+            TimestampBucketSize::Daily => Duration::days(1),
+            TimestampBucketSize::Weekly => Duration::days(7),
+        }
+    }
+
+    pub fn get_timestamp_bucket_size_str(&self) -> &str {
+        match self {
+            TimestampBucketSize::TenMinutes => "minute",
+            TimestampBucketSize::Hourly => "hour",
+            TimestampBucketSize::Daily => "day",
+            TimestampBucketSize::Weekly => "week",
+        }
+    }
+}
+
 #[derive(Debug, FromQueryResult)]
 pub struct TunnelUsagePoint {
     pub bucket: NaiveDateTime,
@@ -43,26 +72,11 @@ pub async fn get_tunnel_usage_data(
     query_end: NaiveDateTime,
 ) -> Result<Vec<TunnelUsagePoint>, Error> {
     //  bucket size handling
-    let bucket_size_str = match timestamp_bucket_size {
-        TimestampBucketSize::TenMinutes => "10 minutes",
-        TimestampBucketSize::Hourly => "1 hour",
-        TimestampBucketSize::Daily => "1 day",
-        TimestampBucketSize::Weekly => "7 days",
-    };
+    let bucket_size_str = timestamp_bucket_size.as_str();
 
-    let bucket_size_duration = match timestamp_bucket_size {
-        TimestampBucketSize::TenMinutes => Duration::minutes(10),
-        TimestampBucketSize::Hourly => Duration::hours(1),
-        TimestampBucketSize::Daily => Duration::days(1),
-        TimestampBucketSize::Weekly => Duration::days(7),
-    };
+    let bucket_size_duration = timestamp_bucket_size.as_duration();
 
-    let trunc_size = match timestamp_bucket_size {
-        TimestampBucketSize::TenMinutes => "minute",
-        TimestampBucketSize::Hourly => "hour",
-        TimestampBucketSize::Daily => "day",
-        TimestampBucketSize::Weekly => "week",
-    };
+    let trunc_size = timestamp_bucket_size.get_timestamp_bucket_size_str();
 
     //  round query timestamps
     //  start time rounded up

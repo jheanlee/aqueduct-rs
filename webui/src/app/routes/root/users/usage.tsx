@@ -22,7 +22,6 @@ import { toast } from "sonner";
 import {
   TunnelUsageConnectionsChart,
   TunnelUsageIOChart,
-  type UsageDataPointFormatted,
 } from "@/components/charts/tunnel-usage.tsx";
 import {
   Card,
@@ -38,7 +37,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.tsx";
-import { handleUsageChartDataPoints } from "@/components/charts/tunnel-usage-utils.ts";
+import {
+  handleUsageChartDataPoints,
+  type UsageDataPointFormatted,
+} from "@/components/charts/tunnel-usage-utils.ts";
 
 export const UserUsage = () => {
   const navigate = useNavigate();
@@ -150,11 +152,11 @@ export const UserUsage = () => {
           </Select>
           <div className="grid grid-cols-1 md:grid-cols-2">
             <div className="px-4">
-              <p className="font-semibold">Tunnelled IO</p>
+              <p className="font-semibold">Throughput</p>
               <TunnelUsageIOChart chartData={usageChartData} />
             </div>
             <div className="px-4">
-              <p className="font-semibold">Connections</p>
+              <p className="font-semibold">New External Connections</p>
               <TunnelUsageConnectionsChart chartData={usageChartData} />
             </div>
           </div>
