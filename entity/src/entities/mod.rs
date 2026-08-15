@@ -23,4 +23,5 @@ pub mod ip_whitelist;
 pub mod mikro_orm_migrations;
 pub mod settings;
 pub mod tunnel_sessions;
+pub mod tunnel_status;
 pub mod tunnel_users;

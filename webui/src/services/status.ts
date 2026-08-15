@@ -25,7 +25,7 @@ export const get_system_status = async () => {
       process_cpu_usage: number;
       process_memory: number;
       process_fd_count: number | null;
-    }>("/api/status/system");
+    }>("/api/status/realtime/system");
 
     res.data.process_fd_count = res.data.process_fd_count
       ? res.data.process_fd_count
@@ -50,7 +50,7 @@ export const get_tunnel_status = async () => {
       uptime: number;
       active_service_count: number;
       active_external_connection_count: number;
-    }>("/api/status/tunnel");
+    }>("/api/status/realtime/tunnel");
 
     return res.data;
   } catch {

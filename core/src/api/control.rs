@@ -17,7 +17,7 @@ use crate::api::jwt::auth::{access_token_middleware, login, logout, refresh_toke
 use crate::api::jwt::key::JwtKeyPair;
 use crate::api::static_files::handlers::{index_handler, static_file_handler};
 use crate::api::status::system::get_system_status;
-use crate::api::status::tunnel::get_tunnel_status;
+use crate::api::status::tunnel::{get_tunnel_status, get_tunnel_status_overall};
 use crate::api::tunnel::settings::{get_settings, set_settings};
 use crate::api::tunnel::usage::{get_tunnel_usage_by_user, get_tunnel_usage_overall};
 use crate::api::tunnel::users::{
@@ -84,8 +84,9 @@ pub async fn api_control(
         .route("/api/tunnel/users/{id}/token/rotate", post(rotate_token))
         .merge(with_access_update)
         .route("/api/tunnel/settings", get(get_settings))
-        .route("/api/status/system", get(get_system_status))
-        .route("/api/status/tunnel", get(get_tunnel_status))
+        .route("/api/status/tunnel", get(get_tunnel_status_overall))
+        .route("/api/status/realtime/system", get(get_system_status))
+        .route("/api/status/realtime/tunnel", get(get_tunnel_status))
         .layer(middleware::from_fn_with_state(
             api_state.clone(),
             access_token_middleware,

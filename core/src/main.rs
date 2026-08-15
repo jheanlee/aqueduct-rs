@@ -52,6 +52,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 use crate::config::args::MigrationModes;
 #[cfg(feature = "migration")]
 use crate::migration::runner::migrate;
+use crate::orm::tunnel_status::database_tunnel_status_task;
 
 mod api;
 mod common;
@@ -171,7 +172,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     //  shared
     let (database_tunnel_session_batch_tx, database_tunnel_session_batch_rx) = mpsc::channel(2048);
     let shared = Shared {
-        db_connection,
+        db_connection: db_connection.clone(),
         auth_manager,
         database_tunnel_session_batch_tx,
     };
@@ -207,6 +208,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         active_service_count: Default::default(),
         active_external_connection_count: Default::default(),
     });
+
+    let database_tunnel_status_task = tokio::spawn(database_tunnel_status_task(
+        db_connection.clone(),
+        tunnel_info.clone(),
+        cancellation_token.clone(),
+    ));
 
     //  api
     let refresh_token_keys = match init_jwt_keys(
@@ -368,6 +375,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     let _ = system_info_cold_task.await;
     let _ = api_task.await;
     let _ = database_tunnel_sessions_batch_task.await;
+    let _ = database_tunnel_status_task.await;
     let _ = pending_cleaner_task.await;
     tunnel_tasks.join_all().await;
     warn!("Finished cleaning up");

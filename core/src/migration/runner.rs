@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use crate::migration::definitions::{BOOTSTRAP_SQL, MIGRATION_001};
+use crate::migration::definitions::{BOOTSTRAP_SQL, MIGRATION_001, MIGRATION_002};
 use crate::migration::error::Error;
 use crate::migration::error::Error::{
     FutureMigrationVersion, InvalidMigrationRecord, UnknownMigrationVersion,
@@ -23,7 +23,7 @@ use sea_orm::DatabaseConnection;
 use tracing::{error, warn};
 
 pub async fn migrate(db_connection: DatabaseConnection) -> Result<(), Error> {
-    const LATEST_MIGRATION_VERSION: &str = MIGRATION_001.name;
+    const LATEST_MIGRATION_VERSION: &str = MIGRATION_002.name;
 
     let db_connection_pool = db_connection.get_postgres_connection_pool();
 
@@ -46,11 +46,12 @@ pub async fn migrate(db_connection: DatabaseConnection) -> Result<(), Error> {
         return Ok(());
     }
 
-    let current_migration_version = match latest_migration_record {
+    let mut current_migration_version = match latest_migration_record {
         None => 0,
         Some(record) => match record.name {
             None => Err(InvalidMigrationRecord)?,
             Some(name) if name == MIGRATION_001.name => 1,
+            Some(name) if name == MIGRATION_002.name => 2,
             Some(name) if name.as_str() < LATEST_MIGRATION_VERSION => Err(UnknownMigrationVersion)?,
             Some(name) if name.as_str() > LATEST_MIGRATION_VERSION => Err(FutureMigrationVersion)?,
             _ => Err(UnknownMigrationVersion)?,
@@ -61,10 +62,24 @@ pub async fn migrate(db_connection: DatabaseConnection) -> Result<(), Error> {
         && let Err(error) = sqlx::raw_sql(MIGRATION_001.sql)
             .execute(db_connection_pool)
             .await
+            .inspect(|_| current_migration_version = 1)
     {
         error!(
             "Failed to execute migration 001 ('{}'): {}",
             MIGRATION_001.name, error
+        );
+        Err(error)?;
+    }
+
+    if current_migration_version == 1
+        && let Err(error) = sqlx::raw_sql(MIGRATION_002.sql)
+            .execute(db_connection_pool)
+            .await
+            .inspect(|_| current_migration_version = 2)
+    {
+        error!(
+            "Failed to execute migration 002 ('{}'): {}",
+            MIGRATION_002.name, error
         );
         Err(error)?;
     }
