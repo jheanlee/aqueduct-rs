@@ -6,13 +6,15 @@ license = "Apache-2.0"
 build = "build.rs"
 
 [features]
-default = ["migration"]
+default = ["migration", "web-ui"]
 migration = ["dep:sqlx"]
+api = ["dep:axum", "dep:jsonwebtoken"]
+web-ui = ["api", "dep:rust-embed", "dep:mime_guess"]
 
 [dependencies]
 aqueduct-rs-entity = { path = "../entity" }
 argon2 = { version = "0.5.3", features = ["std", "rand"] }
-axum = "0.8.9"
+axum = { version = "0.8.9", optional = true }
 base64 = "0.22.1"
 bs58 = "0.5.1"
 chrono = "0.4.45"
@@ -23,10 +25,10 @@ futures = "0.3.34"
 hmac = "0.13.0"
 ip_network = { version = "0.4.1", features = ["serde"] }
 ip_network_table = "0.2.0"
-jsonwebtoken = { version = "10.4.0", features = ["aws-lc-rs", "aws_lc_rs"] }
+jsonwebtoken = { version = "10.4.0", features = ["aws-lc-rs", "aws_lc_rs"], optional = true }
 nanoid = "0.5.0"
 rand = "0.10.2"
-rust-embed = "8.12.0"
+rust-embed = { version = "8.12.0", optional = true }
 rustls = { version = "0.23.43", features = ["aws-lc-rs", "aws_lc_rs"] }
 sea-orm = { version = "2.0.2", features = ["with-ipnetwork"] }
 serde = { version = "1.0.229", features = ["derive"] }
@@ -42,5 +44,5 @@ tokio-util = { version = "0.7.19", features = ["codec"] }
 tracing = "0.1.44"
 tracing-appender = "0.2.5"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-mime_guess = "2.0.5"
+mime_guess = { version = "2.0.5", optional = true }
 
