@@ -13,38 +13,43 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#[cfg(feature = "web-ui")]
 use std::path::{Path, PathBuf};
+#[cfg(feature = "web-ui")]
 use std::{env, fs};
 
 fn main() {
-    let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
+    #[cfg(feature = "web-ui")]
+    {
+        let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
+        let webui_dir = manifest_dir.join("../webui");
 
-    let webui_dir = manifest_dir.join("../webui");
+        let webui_src = webui_dir.join("src");
+        let webui_dist = webui_dir.join("dist");
 
-    let webui_src = webui_dir.join("src");
-    let webui_dist = webui_dir.join("dist");
+        if env::var_os("DOCKER_BUILD").is_none() {
+            println!("cargo:rerun-if-changed={}", webui_src.display());
+        }
 
-    if env::var_os("DOCKER_BUILD").is_none() {
-        println!("cargo:rerun-if-changed={}", webui_src.display());
-    }
+        if !webui_dist.exists() {
+            println!("cargo:warning=Web UI build output missing. Run `cd webui && npm run build`");
+            return;
+        }
 
-    if !webui_dist.exists() {
-        println!("cargo:warning=Web UI build output missing. Run `cd webui && npm run build`");
-        return;
-    }
+        if env::var_os("DOCKER_BUILD").is_none() {
+            let latest_src_modification = latest_dir_modification(&webui_src);
+            let latest_dist_modification = latest_dir_modification(&webui_dist);
 
-    if env::var_os("DOCKER_BUILD").is_none() {
-        let latest_src_modification = latest_dir_modification(&webui_src);
-        let latest_dist_modification = latest_dir_modification(&webui_dist);
-
-        if latest_src_modification > latest_dist_modification {
-            println!(
-                "cargo:warning=Web UI source files are newer than the build output. Run `cd webui && npm run build`"
-            );
+            if latest_src_modification > latest_dist_modification {
+                println!(
+                    "cargo:warning=Web UI source files are newer than the build output. Run `cd webui && npm run build`"
+                );
+            }
         }
     }
 }
 
+#[cfg(feature = "web-ui")]
 fn latest_dir_modification(dir: &Path) -> Option<std::time::SystemTime> {
     fs::read_dir(dir)
         .inspect_err(|e| {

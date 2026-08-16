@@ -15,7 +15,7 @@
  */
 use crate::api::control::ApiState;
 use crate::api::error::Error;
-use crate::orm::tunnel_user::list_users;
+use crate::orm::tunnel_user::{ModifyTunnelUserPasswordBody, NewTunnelUserBody, list_users};
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -52,13 +52,6 @@ pub async fn list_tunnel_users(
     Ok(response_builder.body(Body::from(to_string(&users)?))?)
 }
 
-#[derive(Deserialize)]
-pub struct NewTunnelUserBody {
-    pub username: String,
-    pub password: String,
-    pub label: Vec<String>,
-    pub administrator: bool,
-}
 pub async fn new_tunnel_user(
     State(api_state): State<Arc<ApiState>>,
     Json(body): Json<NewTunnelUserBody>,
@@ -75,12 +68,6 @@ pub async fn new_tunnel_user(
 #[derive(Deserialize)]
 pub struct ModifyTunnelUserPasswordPath {
     pub id: String,
-}
-#[derive(Deserialize)]
-pub struct ModifyTunnelUserPasswordBody {
-    pub password: Option<String>,
-    pub label: Vec<String>,
-    pub administrator: bool,
 }
 pub async fn modify_tunnel_user_password(
     State(api_state): State<Arc<ApiState>>,

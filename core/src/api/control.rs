@@ -15,7 +15,6 @@
  */
 use crate::api::jwt::auth::{access_token_middleware, login, logout, refresh_token};
 use crate::api::jwt::key::JwtKeyPair;
-use crate::api::static_files::handlers::{index_handler, static_file_handler};
 use crate::api::status::system::get_system_status;
 use crate::api::status::tunnel::{get_tunnel_status, get_tunnel_status_overall};
 use crate::api::tunnel::settings::{get_settings, set_settings};
@@ -67,12 +66,20 @@ pub async fn api_control(
         }
     });
 
-    let with_access_update = Router::new()
+    let with_access_update_router = Router::new()
         .route("/api/tunnel/settings", put(set_settings))
         .layer(middleware::from_fn_with_state(
             api_state.clone(),
             update_access_middleware,
         ));
+
+    #[cfg(feature = "web-ui")]
+    let web_ui_router = {
+        use crate::api::static_files::handlers::{index_handler, static_file_handler};
+        Router::new()
+            .route("/{*path}", get(static_file_handler))
+            .route("/", get(index_handler))
+    };
 
     let api = Router::new()
         .route("/api/tunnel/users", post(new_tunnel_user))
@@ -82,7 +89,7 @@ pub async fn api_control(
         .route("/api/tunnel/usage", get(get_tunnel_usage_overall))
         .route("/api/tunnel/usage/{id}", get(get_tunnel_usage_by_user))
         .route("/api/tunnel/users/{id}/token/rotate", post(rotate_token))
-        .merge(with_access_update)
+        .merge(with_access_update_router)
         .route("/api/tunnel/settings", get(get_settings))
         .route("/api/status/tunnel", get(get_tunnel_status_overall))
         .route("/api/status/realtime/system", get(get_system_status))
@@ -94,9 +101,10 @@ pub async fn api_control(
         .route("/api/refresh", post(refresh_token))
         .route("/api/login", post(login))
         .route("/api/logout", post(logout))
-        .with_state(api_state)
-        .route("/{*path}", get(static_file_handler))
-        .route("/", get(index_handler));
+        .with_state(api_state);
+
+    #[cfg(feature = "web-ui")]
+    let api = api.merge(web_ui_router);
 
     match TcpListener::bind(api_host).await {
         Ok(api_listener) => {

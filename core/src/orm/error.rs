@@ -13,7 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#[cfg(feature = "api")]
 use axum::http::StatusCode;
+#[cfg(feature = "api")]
 use axum::response::{IntoResponse, Response};
 
 #[derive(Debug)]
@@ -41,6 +43,7 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+#[cfg(feature = "api")]
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
         match self {

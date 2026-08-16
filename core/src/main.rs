@@ -13,8 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use crate::api::control::{ApiState, api_control};
-use crate::api::jwt::key::init_jwt_keys;
 use crate::common::auth_manager::AuthManager;
 use crate::common::model::Shared;
 use crate::common::signal_handler::signal_handler;
@@ -41,7 +39,7 @@ use tokio::net::TcpListener;
 use tokio::select;
 use tokio::sync::{RwLock, Semaphore, mpsc};
 use tokio::task::JoinSet;
-use tokio::time::{Instant, timeout};
+use tokio::time::timeout;
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, error, info, info_span, warn};
@@ -50,10 +48,9 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 #[cfg(feature = "migration")]
 use crate::config::args::MigrationModes;
-#[cfg(feature = "migration")]
-use crate::migration::runner::migrate;
 use crate::orm::tunnel_status::database_tunnel_status_task;
 
+#[cfg(feature = "api")]
 mod api;
 mod common;
 mod config;
@@ -106,6 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         #[cfg(feature = "migration")]
         Some(Commands::Migrate(args)) => match args.mode {
             MigrationModes::Up => {
+                use crate::migration::runner::migrate;
                 let result = migrate(db_connection).await;
                 match result {
                     Ok(_) => exit(0),
@@ -216,53 +214,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     ));
 
     //  api
-    let refresh_token_keys = match init_jwt_keys(
-        config.jwt_refresh_private_key_path,
-        config.jwt_refresh_public_key_path,
-    )
-    .await
-    {
-        Ok(keys) => keys,
-        Err(error) => {
-            error!(
-                "Unable to initialise refresh token signing keys: {:?}",
-                error
-            );
-            exit(1);
-        }
-    };
-    let access_token_keys = match init_jwt_keys(
-        config.jwt_access_private_key_path,
-        config.jwt_access_public_key_path,
-    )
-    .await
-    {
-        Ok(keys) => keys,
-        Err(error) => {
-            error!(
-                "Unable to initialise refresh token signing keys: {:?}",
-                error
-            );
-            exit(1);
-        }
-    };
+    #[cfg(feature = "api")]
+    let api_task = {
+        use crate::api::control::{ApiState, api_control};
+        use crate::api::jwt::key::init_jwt_keys;
+        use tokio::time::Instant;
 
-    let api_state = Arc::new(ApiState {
-        start_time: Instant::now(),
-        shared: shared.clone(),
-        system_info,
-        tunnel_info: tunnel_info.clone(),
-        whitelist_table: whitelist.clone(),
-        blacklist_table: blacklist.clone(),
-        jti_map: DashMap::new(),
-        refresh_token_keys,
-        access_token_keys,
-    });
-    let api_task = tokio::spawn(api_control(
-        config.api_host,
-        api_state,
-        cancellation_token.clone(),
-    ));
+        let refresh_token_keys = match init_jwt_keys(
+            config.jwt_refresh_private_key_path,
+            config.jwt_refresh_public_key_path,
+        )
+        .await
+        {
+            Ok(keys) => keys,
+            Err(error) => {
+                error!(
+                    "Unable to initialise refresh token signing keys: {:?}",
+                    error
+                );
+                exit(1);
+            }
+        };
+        let access_token_keys = match init_jwt_keys(
+            config.jwt_access_private_key_path,
+            config.jwt_access_public_key_path,
+        )
+        .await
+        {
+            Ok(keys) => keys,
+            Err(error) => {
+                error!(
+                    "Unable to initialise refresh token signing keys: {:?}",
+                    error
+                );
+                exit(1);
+            }
+        };
+
+        let api_state = Arc::new(ApiState {
+            start_time: Instant::now(),
+            shared: shared.clone(),
+            system_info,
+            tunnel_info: tunnel_info.clone(),
+            whitelist_table: whitelist.clone(),
+            blacklist_table: blacklist.clone(),
+            jti_map: DashMap::new(),
+            refresh_token_keys,
+            access_token_keys,
+        });
+
+        tokio::spawn(api_control(
+            config.api_host,
+            api_state,
+            cancellation_token.clone(),
+        ))
+    };
 
     //  tunnel
     let mut tunnel_tasks = JoinSet::new();
@@ -373,6 +379,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     let _ = signal_handler_task.await;
     let _ = system_info_hot_task.await;
     let _ = system_info_cold_task.await;
+    #[cfg(feature = "api")]
     let _ = api_task.await;
     let _ = database_tunnel_sessions_batch_task.await;
     let _ = database_tunnel_status_task.await;

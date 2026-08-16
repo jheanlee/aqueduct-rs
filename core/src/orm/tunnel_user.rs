@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use crate::api::tunnel::users::{ModifyTunnelUserPasswordBody, NewTunnelUserBody};
 use crate::common::auth_manager::AuthManager;
 use crate::orm::error::Error;
 use base64::Engine;
@@ -26,6 +25,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
     Set,
 };
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
@@ -71,6 +71,13 @@ pub async fn authenticate_tunnel_token(
     Ok(user.update(&db_connection).await?.id)
 }
 
+#[derive(Deserialize)]
+pub struct NewTunnelUserBody {
+    pub username: String,
+    pub password: String,
+    pub label: Vec<String>,
+    pub administrator: bool,
+}
 pub async fn new_tunnel_user(
     db_connection: DatabaseConnection,
     auth_manager: Arc<AuthManager>,
@@ -107,6 +114,12 @@ pub async fn new_tunnel_user(
     Ok(())
 }
 
+#[derive(Deserialize)]
+pub struct ModifyTunnelUserPasswordBody {
+    pub password: Option<String>,
+    pub label: Vec<String>,
+    pub administrator: bool,
+}
 pub async fn modify_tunnel_user(
     db_connection: DatabaseConnection,
     auth_manager: Arc<AuthManager>,
