@@ -1,5 +1,5 @@
 [package]
-name = "aqueduct-rs"
+name = "aqueduct"
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
@@ -12,7 +12,7 @@ api = ["dep:axum", "dep:jsonwebtoken"]
 web-ui = ["api", "dep:rust-embed", "dep:mime_guess"]
 
 [dependencies]
-aqueduct-rs-entity = { path = "../entity" }
+aqueduct-entity = { path = "../entity" }
 argon2 = { version = "0.5.3", features = ["std", "rand"] }
 axum = { version = "0.8.9", optional = true }
 base64 = "0.22.1"

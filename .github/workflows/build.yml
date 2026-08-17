@@ -80,6 +80,6 @@ jobs:
                     context: .
                     push: false
                     platforms: ${{ matrix.platform.docker }}
-                    tags: aqueduct-rs:ci
+                    tags: aqueduct:ci
                     cache-from: type=gha
                     cache-to: type=gha,mode=max

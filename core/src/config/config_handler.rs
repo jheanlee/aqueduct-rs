@@ -69,7 +69,7 @@ pub fn read_config() -> Result<Config, ConfigError> {
         jwt_refresh_private_key_path: "".to_string(),
         jwt_refresh_public_key_path: "".to_string(),
 
-        db_name: "aqueduct-rs".to_string(),
+        db_name: "aqueduct".to_string(),
         db_host: "127.0.0.1".to_string(),
         db_port: 5432,
         db_username: "postgres".to_string(),
