@@ -16,7 +16,6 @@
 
 pub mod blacklist;
 pub mod error;
-#[cfg(feature = "migration")]
 pub mod mikro_orm_migrations;
 pub mod settings;
 pub mod tunnel_session;

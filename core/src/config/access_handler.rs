@@ -21,21 +21,21 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 pub async fn update_access_ip_tables(
-    db_connection: DatabaseConnection,
+    db_connection: &DatabaseConnection,
     whitelist_table: Arc<RwLock<IpNetworkTable<()>>>,
     blacklist_table: Arc<RwLock<IpNetworkTable<()>>>,
 ) -> Result<(), crate::orm::error::Error> {
     {
         let mut whitelist_table = whitelist_table.write().await;
         *whitelist_table = IpNetworkTable::new();
-        for entry in get_whitelist(db_connection.clone()).await? {
+        for entry in get_whitelist(db_connection).await? {
             whitelist_table.insert(entry, ());
         }
     }
     {
         let mut blacklist_table = blacklist_table.write().await;
         *blacklist_table = IpNetworkTable::new();
-        for entry in get_blacklist(db_connection.clone()).await? {
+        for entry in get_blacklist(db_connection).await? {
             blacklist_table.insert(entry, ());
         }
     }

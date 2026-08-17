@@ -13,18 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use crate::migration::definitions::{BOOTSTRAP_SQL, MIGRATION_001, MIGRATION_002};
 use crate::migration::error::Error;
-use crate::migration::error::Error::{
-    FutureMigrationVersion, InvalidMigrationRecord, UnknownMigrationVersion,
+use crate::orm::mikro_orm_migrations::{
+    LATEST_MIGRATION_VERSION, MIGRATION_001, MIGRATION_002, get_latest_migration_record,
+    migration_version,
 };
-use crate::orm::mikro_orm_migrations::get_latest_migration_record;
 use sea_orm::DatabaseConnection;
 use tracing::{error, warn};
 
-pub async fn migrate(db_connection: DatabaseConnection) -> Result<(), Error> {
-    const LATEST_MIGRATION_VERSION: &str = MIGRATION_002.name;
+pub const BOOTSTRAP_SQL: &str =
+    include_str!("../../../migration/src/migrations_raw_sql/bootstrap.sql");
 
+pub async fn migrate(db_connection: DatabaseConnection) -> Result<(), Error> {
     let db_connection_pool = db_connection.get_postgres_connection_pool();
 
     if let Err(error) = sqlx::raw_sql(BOOTSTRAP_SQL)
@@ -46,16 +46,22 @@ pub async fn migrate(db_connection: DatabaseConnection) -> Result<(), Error> {
         return Ok(());
     }
 
-    let mut current_migration_version = match latest_migration_record {
-        None => 0,
-        Some(record) => match record.name {
-            None => Err(InvalidMigrationRecord)?,
-            Some(name) if name == MIGRATION_001.name => 1,
-            Some(name) if name == MIGRATION_002.name => 2,
-            Some(name) if name.as_str() < LATEST_MIGRATION_VERSION => Err(UnknownMigrationVersion)?,
-            Some(name) if name.as_str() > LATEST_MIGRATION_VERSION => Err(FutureMigrationVersion)?,
-            _ => Err(UnknownMigrationVersion)?,
-        },
+    let mut current_migration_version = match migration_version(latest_migration_record) {
+        -1 => {
+            warn!("Invalid migration record in the database");
+            Err(Error::InvalidMigrationRecord)?
+        }
+        -2 => {
+            warn!("Record of a unknown migration version found in the database");
+            Err(Error::UnknownMigrationVersion)?
+        }
+        -3 => {
+            warn!(
+                "Record of (possibly) a future migration version found in the database. Please upgrade to a compatible version"
+            );
+            Err(Error::FutureMigrationVersion)?
+        }
+        version => version,
     };
 
     if current_migration_version == 0

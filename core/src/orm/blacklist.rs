@@ -21,9 +21,9 @@ use serde::Deserialize;
 use std::net::IpAddr;
 use std::str::FromStr;
 
-pub async fn get_blacklist(db_connection: DatabaseConnection) -> Result<Vec<IpNetwork>, Error> {
+pub async fn get_blacklist(db_connection: &DatabaseConnection) -> Result<Vec<IpNetwork>, Error> {
     let res: Vec<IpNetwork> = Entity::find()
-        .all(&db_connection)
+        .all(db_connection)
         .await?
         .into_iter()
         .filter_map(|v| {
@@ -49,7 +49,7 @@ struct BlacklistEntry {
     pub notes: String,
 }
 async fn add_blacklist(
-    db_connection: DatabaseConnection,
+    db_connection: &DatabaseConnection,
     values: Vec<BlacklistEntry>,
 ) -> Result<(), Error> {
     let models: Vec<ActiveModel> = values
@@ -66,7 +66,7 @@ async fn add_blacklist(
         })
         .collect::<Result<Vec<ActiveModel>, Error>>()?;
 
-    let res = Entity::insert_many(models).exec(&db_connection).await;
+    let res = Entity::insert_many(models).exec(db_connection).await;
     match res {
         Ok(_) => Ok(()),
         Err(DbErr::Query(RuntimeErr::SqlxError(error))) => match error.as_ref() {
@@ -83,10 +83,10 @@ async fn add_blacklist(
 }
 
 pub async fn set_blacklist(
-    db_connection: DatabaseConnection,
+    db_connection: &DatabaseConnection,
     blacklist: Vec<IpNetwork>,
 ) -> Result<(), Error> {
-    Entity::delete_many().exec(&db_connection).await?;
+    Entity::delete_many().exec(db_connection).await?;
     let blacklist_entries: Vec<BlacklistEntry> = blacklist
         .iter()
         .map(|entry| BlacklistEntry {

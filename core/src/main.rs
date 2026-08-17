@@ -48,6 +48,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 #[cfg(feature = "migration")]
 use crate::config::args::MigrationModes;
+use crate::init::runner::initialize_database;
 use crate::orm::tunnel_status::database_tunnel_status_task;
 
 #[cfg(feature = "api")]
@@ -55,6 +56,7 @@ mod api;
 mod common;
 mod config;
 mod core;
+pub mod init;
 #[cfg(feature = "migration")]
 mod migration;
 mod orm;
@@ -111,11 +113,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                 }
             }
         },
+        Some(Commands::Init) => {
+            let result = initialize_database(db_connection).await;
+            match result {
+                Ok(_) => exit(0),
+                Err(_) => exit(1),
+            }
+        }
         None => {} // _ => unreachable!(),
     }
 
     //  retrieve configuration stored in the database
-    let db_config = read_db_config(db_connection.clone())
+    let db_config = read_db_config(&db_connection)
         .await
         .unwrap_or_else(|error| {
             error!("{}", error);
@@ -125,7 +134,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     //  whitelist and blacklist
     let whitelist = Arc::new(RwLock::new(IpNetworkTable::new()));
     let blacklist = Arc::new(RwLock::new(IpNetworkTable::new()));
-    update_access_ip_tables(db_connection.clone(), whitelist.clone(), blacklist.clone())
+    update_access_ip_tables(&db_connection, whitelist.clone(), blacklist.clone())
         .await
         .unwrap_or_else(|error| {
             error!("{}", error);

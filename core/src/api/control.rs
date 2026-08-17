@@ -131,7 +131,7 @@ async fn update_access_middleware(
 ) -> Response {
     let response = next.run(request).await;
     if let Err(error) = update_access_ip_tables(
-        api_state.shared.db_connection.clone(),
+        &api_state.shared.db_connection,
         api_state.whitelist_table.clone(),
         api_state.blacklist_table.clone(),
     )
