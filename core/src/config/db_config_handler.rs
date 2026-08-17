@@ -15,14 +15,14 @@
  */
 use crate::config::error::ConfigError;
 use crate::orm::settings::read_settings;
-use sea_orm::DbConn;
+use sea_orm::DatabaseConnection;
 
 pub struct DbConfig {
     pub whitelist: bool,
     pub blacklist: bool,
 }
 
-pub async fn read_db_config(db_connection: DbConn) -> Result<DbConfig, ConfigError> {
+pub async fn read_db_config(db_connection: &DatabaseConnection) -> Result<DbConfig, ConfigError> {
     let mut db_config = DbConfig {
         whitelist: false,
         blacklist: true,

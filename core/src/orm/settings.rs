@@ -26,12 +26,12 @@ pub enum SettingsKey {
     Blacklist,
 }
 
-pub async fn read_settings(db_connection: DatabaseConnection) -> Result<Vec<Model>, Error> {
-    Ok(Entity::find().all(&db_connection).await?)
+pub async fn read_settings(db_connection: &DatabaseConnection) -> Result<Vec<Model>, Error> {
+    Ok(Entity::find().all(db_connection).await?)
 }
 
 pub async fn set_settings_value(
-    db_connection: DatabaseConnection,
+    db_connection: &DatabaseConnection,
     key: SettingsKey,
     value: String,
 ) -> Result<(), Error> {
@@ -48,7 +48,7 @@ pub async fn set_settings_value(
 }
 
 async fn upsert_settings_entry(
-    db_connection: DatabaseConnection,
+    db_connection: &DatabaseConnection,
     key: String,
     value: String,
 ) -> Result<(), Error> {
@@ -62,7 +62,7 @@ async fn upsert_settings_entry(
                 .update_column(Column::Value.to_owned())
                 .clone(),
         )
-        .exec(&db_connection)
+        .exec(db_connection)
         .await?;
     Ok(())
 }

@@ -60,6 +60,7 @@ pub struct Args {
 pub enum Commands {
     #[cfg(feature = "migration")]
     Migrate(MigrationArgs),
+    Init,
 }
 
 #[derive(clap::Args)]

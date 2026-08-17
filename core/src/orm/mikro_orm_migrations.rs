@@ -25,3 +25,41 @@ pub async fn get_latest_migration_record(
         .one(db_connection)
         .await?)
 }
+
+pub fn migration_version(record: Option<Model>) -> i32 {
+    match record {
+        None => 0,
+        Some(record) => match record.name {
+            None => -1, //  InvalidMigrationRecord
+            Some(name) if name == MIGRATION_001.name => 1,
+            Some(name) if name == MIGRATION_002.name => 2,
+            Some(name) if name.as_str() < LATEST_MIGRATION_VERSION => -2, //  UnknownMigrationVersion
+            Some(name) if name.as_str() > LATEST_MIGRATION_VERSION => -3, //  FutureMigrationVersion
+            _ => -2, //  UnknownMigrationVersion
+        },
+    }
+}
+
+pub struct Migration {
+    pub name: &'static str,
+    #[cfg(feature = "migration")]
+    pub sql: &'static str,
+}
+
+macro_rules! include_up_migration {
+    ($migration: literal) => {
+        Migration {
+            name: $migration,
+            #[cfg(feature = "migration")]
+            sql: include_str!(concat!(
+                "../../../migration/src/migrations_raw_sql/up/",
+                $migration,
+                ".sql"
+            )),
+        }
+    };
+}
+
+pub const MIGRATION_001: Migration = include_up_migration!("Migration20260806140916");
+pub const MIGRATION_002: Migration = include_up_migration!("Migration20260815064212");
+pub const LATEST_MIGRATION_VERSION: &str = MIGRATION_002.name;

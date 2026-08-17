@@ -39,9 +39,9 @@ pub struct GetSettingsResponse {
 }
 
 pub async fn get_settings(State(api_state): State<Arc<ApiState>>) -> Result<Response<Body>, Error> {
-    let settings = read_db_config(api_state.shared.db_connection.clone()).await?;
-    let blacklist = get_blacklist(api_state.shared.db_connection.clone()).await?;
-    let whitelist = get_whitelist(api_state.shared.db_connection.clone()).await?;
+    let settings = read_db_config(&api_state.shared.db_connection).await?;
+    let blacklist = get_blacklist(&api_state.shared.db_connection).await?;
+    let whitelist = get_whitelist(&api_state.shared.db_connection).await?;
 
     let response_builder =
         Response::builder().header(http::header::CONTENT_TYPE, "application/json");
@@ -87,20 +87,20 @@ pub async fn set_settings(
         .collect::<Result<Vec<IpNetwork>, Error>>()?;
 
     set_settings_value(
-        api_state.shared.db_connection.clone(),
+        &api_state.shared.db_connection,
         SettingsKey::Blacklist,
         body.blacklist_enabled.to_string(),
     )
     .await?;
     set_settings_value(
-        api_state.shared.db_connection.clone(),
+        &api_state.shared.db_connection,
         SettingsKey::Whitelist,
         body.whitelist_enabled.to_string(),
     )
     .await?;
 
-    set_blacklist(api_state.shared.db_connection.clone(), blacklist).await?;
-    set_whitelist(api_state.shared.db_connection.clone(), whitelist).await?;
+    set_blacklist(&api_state.shared.db_connection, blacklist).await?;
+    set_whitelist(&api_state.shared.db_connection, whitelist).await?;
 
     Ok(StatusCode::OK)
 }

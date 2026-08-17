@@ -21,9 +21,9 @@ use serde::Deserialize;
 use std::net::IpAddr;
 use std::str::FromStr;
 
-pub async fn get_whitelist(db_connection: DatabaseConnection) -> Result<Vec<IpNetwork>, Error> {
+pub async fn get_whitelist(db_connection: &DatabaseConnection) -> Result<Vec<IpNetwork>, Error> {
     let res: Vec<IpNetwork> = Entity::find()
-        .all(&db_connection)
+        .all(db_connection)
         .await?
         .into_iter()
         .filter_map(|v| {
@@ -49,7 +49,7 @@ struct WhitelistEntry {
     pub notes: String,
 }
 async fn add_whitelist(
-    db_connection: DatabaseConnection,
+    db_connection: &DatabaseConnection,
     values: Vec<WhitelistEntry>,
 ) -> Result<(), Error> {
     let models: Vec<ActiveModel> = values
@@ -66,7 +66,7 @@ async fn add_whitelist(
         })
         .collect::<Result<Vec<ActiveModel>, Error>>()?;
 
-    let res = Entity::insert_many(models).exec(&db_connection).await;
+    let res = Entity::insert_many(models).exec(db_connection).await;
     match res {
         Ok(_) => Ok(()),
         Err(DbErr::Query(RuntimeErr::SqlxError(error))) => match error.as_ref() {
@@ -83,10 +83,10 @@ async fn add_whitelist(
 }
 
 pub async fn set_whitelist(
-    db_connection: DatabaseConnection,
+    db_connection: &DatabaseConnection,
     whitelist: Vec<IpNetwork>,
 ) -> Result<(), Error> {
-    Entity::delete_many().exec(&db_connection).await?;
+    Entity::delete_many().exec(db_connection).await?;
     let whitelist_entries: Vec<WhitelistEntry> = whitelist
         .iter()
         .map(|entry| WhitelistEntry {
