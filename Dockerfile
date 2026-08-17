@@ -28,6 +28,6 @@ FROM debian:trixie-slim
 
 WORKDIR /aqueduct
 
-COPY --from=rust-build /aqueduct/target/release/aqueduct-rs .
+COPY --from=rust-build /aqueduct/target/release/aqueduct .
 
-CMD ["./aqueduct-rs"]
+CMD ["./aqueduct"]

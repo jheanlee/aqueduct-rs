@@ -21,7 +21,7 @@ import { Migrator } from "@mikro-orm/migrations";
 import { SeedManager } from "@mikro-orm/seeder";
 
 export default defineConfig({
-  dbName: process.env.DB_NAME || "aqueduct-rs",
+  dbName: process.env.DB_NAME || "aqueduct",
   host: process.env.DB_HOST,
   port: parseInt(process.env.DB_PORT || "5432"),
   user: process.env.DB_USERNAME,
