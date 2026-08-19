@@ -23,7 +23,10 @@ pub struct Args {
     #[command(subcommand)]
     pub command: Option<Commands>,
     #[arg(long)]
-    pub host: Option<SocketAddr>,
+    pub bind_address: Option<SocketAddr>,
+    #[arg(long)]
+    #[cfg(feature = "api")]
+    pub api_bind_address: Option<SocketAddr>,
     #[arg(long)]
     pub tunnel_allowed_ports: Option<String>,
     #[arg(long)]
@@ -31,19 +34,21 @@ pub struct Args {
     #[arg(long)]
     pub tunnel_client_connection_limit: Option<u32>,
     #[arg(long)]
-    pub tls_cert: Option<String>,
+    pub tls_certificate_file: Option<String>,
     #[arg(long)]
-    pub tls_private_key: Option<String>,
+    pub tls_private_key_file: Option<String>,
     #[arg(long)]
-    pub api_host: Option<SocketAddr>,
+    #[cfg(feature = "api")]
+    pub jwt_access_private_key_file: Option<String>,
     #[arg(long)]
-    pub jwt_access_private_key: Option<String>,
+    #[cfg(feature = "api")]
+    pub jwt_access_public_key_file: Option<String>,
     #[arg(long)]
-    pub jwt_access_public_key: Option<String>,
+    #[cfg(feature = "api")]
+    pub jwt_refresh_private_key_file: Option<String>,
     #[arg(long)]
-    pub jwt_refresh_private_key: Option<String>,
-    #[arg(long)]
-    pub jwt_refresh_public_key: Option<String>,
+    #[cfg(feature = "api")]
+    pub jwt_refresh_public_key_file: Option<String>,
     #[arg(long)]
     pub db_name: Option<String>,
     #[arg(long)]
@@ -51,7 +56,7 @@ pub struct Args {
     #[arg(long)]
     pub db_port: Option<u16>,
     #[arg(long)]
-    pub db_username: Option<String>,
+    pub db_user: Option<String>,
     #[arg(long)]
     pub db_password: Option<String>,
 }
