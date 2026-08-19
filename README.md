@@ -6,7 +6,7 @@ Aqueduct lets you securely expose and access TCP services through a server with 
 
 The [Aqueduct client](https://github.com/jheanlee/aqueduct-client-rs) is maintained in a separate repository.
 
-# Quickstart
+## Quickstart
 
 Download prebuilt binaries from [server releases](https://github.com/jheanlee/aqueduct-rs/releases)
 or [client releases](https://github.com/jheanlee/aqueduct-client-rs/releases), or build from source for other platforms.
@@ -18,9 +18,9 @@ To use Aqueduct, you need a server accessible to your external clients, a servic
 can access both the server and the service. The Aqueduct client can run on the same machine as the service or on the
 Aqueduct server itself, which can be useful when the service is accessible from the server through an overlay network.
 
-## Binary
+### Binary
 
-### Server
+#### Server
 
 The server requires an existing [PostgreSQL](https://www.postgresql.org/) database, a TLS certificate and private key,
 and separate public/private key pairs for access and refresh JWTs.
@@ -61,7 +61,7 @@ production.
 ./aqueduct
 ```
 
-### Client
+#### Client
 
 1. Download the prebuilt binary from [client releases](https://github.com/jheanlee/aqueduct-client-rs/releases)
 2. Copy the [client .env.example](https://github.com/jheanlee/aqueduct-client-rs/blob/master/.env.example) to
@@ -74,15 +74,15 @@ production.
 
 If the client fails to connect due to an `InvalidCertificate` error, see [Troubleshooting](#troubleshooting).
 
-# Usage & Configuration
+## Usage & Configuration
 
-## Logging
+### Logging
 
 Run the binary with the environment variable `RUST_LOG` to customize log levels. Available levels are: `OFF`, `ERROR`,
 `WARN`, `INFO`, `DEBUG` and `TRACE`. For advanced usage, please refer to
 the [env_logger documentation](https://docs.rs/env_logger/).
 
-## Server
+### Server
 
 | Environment Variable                      | Command Line Option                | Default Value     | Description                                                                                                                                                                                    |
 |-------------------------------------------|------------------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -103,7 +103,7 @@ the [env_logger documentation](https://docs.rs/env_logger/).
 | `AQUEDUCT_DB_USER`                        | `--db-user`                        | `"postgres"`      | User used to connect to the database                                                                                                                                                           |
 | `AQUEDUCT_DB_PASSWORD`                    | `--db-password`                    | `""`              | Password used to connect to the database                                                                                                                                                       |
 
-## Client
+### Client
 
 | Environment Variable | Command Line Option | Default Value                                          | Description                                                                                                              |
 |----------------------|---------------------|--------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
@@ -114,9 +114,9 @@ the [env_logger documentation](https://docs.rs/env_logger/).
 | `AQUEDUCT_TOKEN`     | `--token`           | `N/A` (required if `user` or `password` is not set)    | Authentication token used to authenticate with the Aqueduct server; takes precedence over `user` and `password` when set |
 | N/A                  | `--insecure-tls`    | `not set` (flag)                                       | Disables TLS certificate verification                                                                                    |
 
-# Troubleshooting
+## Troubleshooting
 
-## InvalidCertificate Error
+### InvalidCertificate Error
 
 If the server's TLS certificate cannot be verified, the client will fail to connect and return an
 `InvalidCertificate` error. For example:
@@ -131,6 +131,6 @@ It can also occur if a CA certificate is incorrectly configured as the server's 
 For testing, you can disable TLS certificate verification with the `--insecure-tls` flag. This disables verification of
 the certificate's issuer, hostname, expiration, and other certificate properties. Do not use this flag in production.
 
-# License
+## License
 
 This project is licensed under the [Apache License 2.0](LICENSE).
