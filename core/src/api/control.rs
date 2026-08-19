@@ -42,7 +42,7 @@ use tokio::select;
 use tokio::sync::RwLock;
 use tokio::time::{Instant, sleep};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 pub async fn api_control(
     api_host: SocketAddr,
@@ -108,7 +108,7 @@ pub async fn api_control(
 
     match TcpListener::bind(api_host).await {
         Ok(api_listener) => {
-            warn!(
+            info!(
                 "API service listening on {}:{}",
                 api_host.ip(),
                 api_host.port()

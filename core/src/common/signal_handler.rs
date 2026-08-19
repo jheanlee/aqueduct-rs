@@ -16,7 +16,7 @@
 use tokio::select;
 use tokio::signal::unix::{SignalKind, signal};
 use tokio_util::sync::CancellationToken;
-use tracing::warn;
+use tracing::{info, warn};
 
 pub async fn signal_handler(cancellation_token: CancellationToken) {
     let mut sighup = signal(SignalKind::hangup()).unwrap();
@@ -37,7 +37,7 @@ pub async fn signal_handler(cancellation_token: CancellationToken) {
                 break;
             }
             _ = sigint.recv() => {
-                warn!("Received SIGINT");
+                info!("Received SIGINT");
                 cancellation_token.cancel();
                 break;
             }
@@ -48,7 +48,7 @@ pub async fn signal_handler(cancellation_token: CancellationToken) {
             }
             _ = sigpipe.recv() => {}
             _ = sigterm.recv() => {
-                warn!("Received SIGTERM");
+                info!("Received SIGTERM");
                 cancellation_token.cancel();
                 break;
             }

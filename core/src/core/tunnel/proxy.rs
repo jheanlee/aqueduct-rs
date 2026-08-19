@@ -272,18 +272,15 @@ pub async fn tunnel_client_proxy(
                         match error.kind() {
                             ErrorKind::BrokenPipe => {
                                 //  often occurs under normal circumstances
-                                debug!("TCP proxying ended with BrokenPipe");
                             }
                             ErrorKind::ConnectionReset => {
                                 //  often occurs under normal circumstances
-                                debug!("TCP proxying ended with ConnectionReset");
                             }
                             ErrorKind::UnexpectedEof => {
                                 //  often occurs under normal circumstances
-                                debug!("TCP proxying ended with UnexpectedEof");
                             }
                             _ => {
-                                warn!("TCP proxying ended with error: {:?}", error);
+                                debug!("TCP proxying ended with error: {:?}", error);
                             }
                         }
                     }

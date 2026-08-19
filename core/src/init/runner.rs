@@ -22,7 +22,7 @@ use crate::orm::tunnel_user::{NewTunnelUserBody, new_tunnel_user};
 use crate::orm::whitelist::set_whitelist;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 pub async fn initialize_database(db_connection: DatabaseConnection) -> Result<(), Error> {
     const MINIMAL_SUPPORTED_VERSION: i32 = 2;
@@ -114,7 +114,7 @@ pub async fn initialize_database(db_connection: DatabaseConnection) -> Result<()
         Err(error)?
     }
 
-    warn!(
+    info!(
         r#"Initialized database:
         -------- User --------
         Username: {DEFAULT_USER_NAME}
