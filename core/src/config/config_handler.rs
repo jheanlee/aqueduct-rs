@@ -25,7 +25,7 @@ use std::str::FromStr;
 pub struct Config {
     pub subcommand: Option<Commands>,
 
-    pub tunnel_host: SocketAddr,
+    pub tunnel_bind_address: SocketAddr,
     pub tunnel_allowed_ports: VecDeque<u16>,
     pub tunnel_global_connection_limit: u32,
     pub tunnel_client_connection_limit: u32,
@@ -33,17 +33,22 @@ pub struct Config {
     pub tls_cert_path: String,
     pub tls_private_key_path: String,
 
-    pub api_host: SocketAddr,
+    #[cfg(feature = "api")]
+    pub api_bind_address: SocketAddr,
 
+    #[cfg(feature = "api")]
     pub jwt_access_private_key_path: String,
+    #[cfg(feature = "api")]
     pub jwt_access_public_key_path: String,
+    #[cfg(feature = "api")]
     pub jwt_refresh_private_key_path: String,
+    #[cfg(feature = "api")]
     pub jwt_refresh_public_key_path: String,
 
     pub db_name: String,
     pub db_host: String,
     pub db_port: u16,
-    pub db_username: String,
+    pub db_user: String,
     pub db_password: String,
 }
 
@@ -55,30 +60,39 @@ pub fn read_config() -> Result<Config, ConfigError> {
     let mut config = Config {
         subcommand: None,
 
-        tunnel_host: SocketAddr::from_str("0.0.0.0:30330")?,
+        tunnel_bind_address: SocketAddr::from_str("0.0.0.0:30330")?,
         tunnel_allowed_ports: (51000..=51999).collect(),
-        tunnel_global_connection_limit: 10000,
-        tunnel_client_connection_limit: 2048,
+        tunnel_global_connection_limit: 16384,
+        tunnel_client_connection_limit: 256,
 
         tls_cert_path: "".to_string(),
         tls_private_key_path: "".to_string(),
 
-        api_host: SocketAddr::from_str("0.0.0.0:30331")?,
+        #[cfg(feature = "api")]
+        api_bind_address: SocketAddr::from_str("0.0.0.0:30331")?,
+        #[cfg(feature = "api")]
         jwt_access_private_key_path: "".to_string(),
+        #[cfg(feature = "api")]
         jwt_access_public_key_path: "".to_string(),
+        #[cfg(feature = "api")]
         jwt_refresh_private_key_path: "".to_string(),
+        #[cfg(feature = "api")]
         jwt_refresh_public_key_path: "".to_string(),
 
         db_name: "aqueduct".to_string(),
         db_host: "127.0.0.1".to_string(),
         db_port: 5432,
-        db_username: "postgres".to_string(),
+        db_user: "postgres".to_string(),
         db_password: "".to_string(),
     };
 
     //  environment variable
-    if let Ok(tunnel_host) = std::env::var("AQUEDUCT_HOST") {
-        config.tunnel_host = tunnel_host.parse()?;
+    if let Ok(tunnel_bind_address) = std::env::var("AQUEDUCT_BIND_ADDRESS") {
+        config.tunnel_bind_address = tunnel_bind_address.parse()?;
+    }
+    #[cfg(feature = "api")]
+    if let Ok(api_bind_address) = std::env::var("AQUEDUCT_API_BIND_ADDRESS") {
+        config.api_bind_address = api_bind_address.parse()?;
     }
     if let Ok(tunnel_allowed_ports) = std::env::var("AQUEDUCT_TUNNEL_ALLOWED_PORTS") {
         config.tunnel_allowed_ports = parse_port_list(tunnel_allowed_ports.as_str())
@@ -112,25 +126,27 @@ pub fn read_config() -> Result<Config, ConfigError> {
                 ))
             })?;
     }
-    if let Ok(tls_cert) = std::env::var("AQUEDUCT_TLS_CERT") {
+    if let Ok(tls_cert) = std::env::var("AQUEDUCT_TLS_CERTIFICATE_FILE") {
         config.tls_cert_path = tls_cert;
     }
-    if let Ok(tls_private_key) = std::env::var("AQUEDUCT_TLS_PRIVATE_KEY") {
+    if let Ok(tls_private_key) = std::env::var("AQUEDUCT_TLS_PRIVATE_KEY_FILE") {
         config.tls_private_key_path = tls_private_key;
     }
-    if let Ok(api_host) = std::env::var("AQUEDUCT_API_HOST") {
-        config.api_host = api_host.parse()?;
-    }
-    if let Ok(jwt_access_private_key_path) = std::env::var("AQUEDUCT_JWT_ACCESS_PRIVATE_KEY") {
+    #[cfg(feature = "api")]
+    if let Ok(jwt_access_private_key_path) = std::env::var("AQUEDUCT_JWT_ACCESS_PRIVATE_KEY_FILE") {
         config.jwt_access_private_key_path = jwt_access_private_key_path;
     }
-    if let Ok(jwt_access_public_key_path) = std::env::var("AQUEDUCT_JWT_ACCESS_PUBLIC_KEY") {
+    #[cfg(feature = "api")]
+    if let Ok(jwt_access_public_key_path) = std::env::var("AQUEDUCT_JWT_ACCESS_PUBLIC_KEY_FILE") {
         config.jwt_access_public_key_path = jwt_access_public_key_path;
     }
-    if let Ok(jwt_refresh_private_key_path) = std::env::var("AQUEDUCT_JWT_REFRESH_PRIVATE_KEY") {
+    #[cfg(feature = "api")]
+    if let Ok(jwt_refresh_private_key_path) = std::env::var("AQUEDUCT_JWT_REFRESH_PRIVATE_KEY_FILE")
+    {
         config.jwt_refresh_private_key_path = jwt_refresh_private_key_path;
     }
-    if let Ok(jwt_refresh_public_key_path) = std::env::var("AQUEDUCT_JWT_REFRESH_PUBLIC_KEY") {
+    #[cfg(feature = "api")]
+    if let Ok(jwt_refresh_public_key_path) = std::env::var("AQUEDUCT_JWT_REFRESH_PUBLIC_KEY_FILE") {
         config.jwt_refresh_public_key_path = jwt_refresh_public_key_path;
     }
     if let Ok(db_name) = std::env::var("AQUEDUCT_DB_NAME") {
@@ -144,8 +160,8 @@ pub fn read_config() -> Result<Config, ConfigError> {
             ConfigError::ParseError(("config".to_string(), "AQUEDUCT_DB_PORT".to_string()))
         })?;
     }
-    if let Ok(db_username) = std::env::var("AQUEDUCT_DB_USERNAME") {
-        config.db_username = db_username;
+    if let Ok(db_user) = std::env::var("AQUEDUCT_DB_USER") {
+        config.db_user = db_user;
     }
     if let Ok(db_password) = std::env::var("AQUEDUCT_DB_PASSWORD") {
         config.db_password = db_password;
@@ -154,8 +170,12 @@ pub fn read_config() -> Result<Config, ConfigError> {
     //  args
     let args = Args::parse();
     config.subcommand = args.command;
-    if let Some(tunnel_host) = args.host {
-        config.tunnel_host = tunnel_host;
+    if let Some(tunnel_bind_address) = args.bind_address {
+        config.tunnel_bind_address = tunnel_bind_address;
+    }
+    #[cfg(feature = "api")]
+    if let Some(api_bind_address) = args.api_bind_address {
+        config.api_bind_address = api_bind_address;
     }
     if let Some(tunnel_allowed_ports) = args.tunnel_allowed_ports {
         config.tunnel_allowed_ports = parse_port_list(tunnel_allowed_ports.as_str())
@@ -173,25 +193,26 @@ pub fn read_config() -> Result<Config, ConfigError> {
     if let Some(tunnel_client_connection_limit) = args.tunnel_client_connection_limit {
         config.tunnel_client_connection_limit = tunnel_client_connection_limit;
     }
-    if let Some(tls_cert) = args.tls_cert {
+    if let Some(tls_cert) = args.tls_certificate_file {
         config.tls_cert_path = tls_cert;
     }
-    if let Some(tls_private_key) = args.tls_private_key {
+    if let Some(tls_private_key) = args.tls_private_key_file {
         config.tls_private_key_path = tls_private_key;
     }
-    if let Some(api_host) = args.api_host {
-        config.api_host = api_host;
-    }
-    if let Some(jwt_access_private_key_path) = args.jwt_access_private_key {
+    #[cfg(feature = "api")]
+    if let Some(jwt_access_private_key_path) = args.jwt_access_private_key_file {
         config.jwt_access_private_key_path = jwt_access_private_key_path;
     }
-    if let Some(jwt_access_public_key_path) = args.jwt_access_public_key {
+    #[cfg(feature = "api")]
+    if let Some(jwt_access_public_key_path) = args.jwt_access_public_key_file {
         config.jwt_access_public_key_path = jwt_access_public_key_path;
     }
-    if let Some(jwt_refresh_private_key_path) = args.jwt_refresh_private_key {
+    #[cfg(feature = "api")]
+    if let Some(jwt_refresh_private_key_path) = args.jwt_refresh_private_key_file {
         config.jwt_refresh_private_key_path = jwt_refresh_private_key_path;
     }
-    if let Some(jwt_refresh_public_key_path) = args.jwt_refresh_public_key {
+    #[cfg(feature = "api")]
+    if let Some(jwt_refresh_public_key_path) = args.jwt_refresh_public_key_file {
         config.jwt_refresh_public_key_path = jwt_refresh_public_key_path;
     }
     if let Some(db_name) = args.db_name {
@@ -203,27 +224,55 @@ pub fn read_config() -> Result<Config, ConfigError> {
     if let Some(db_port) = args.db_port {
         config.db_port = db_port;
     }
-    if let Some(db_username) = args.db_username {
-        config.db_username = db_username;
+    if let Some(db_user) = args.db_user {
+        config.db_user = db_user;
     }
     if let Some(db_password) = args.db_password {
         config.db_password = db_password;
     }
 
     //  check required field
-    if config.tls_cert_path.is_empty() {
+    if config.subcommand.is_none() && config.tls_cert_path.is_empty() {
         Err(ConfigError::RequiredFieldEmpty((
-            "tls_cert".to_string(),
-            "AQUEDUCT_TLS_CERT".to_string(),
-        )))
-    } else if config.tls_private_key_path.is_empty() {
-        Err(ConfigError::RequiredFieldEmpty((
-            "tls_private_key".to_string(),
-            "AQUEDUCT_TLS_PRIVATE_KEY".to_string(),
-        )))
-    } else {
-        Ok(config)
+            "tls-certificate-file".to_string(),
+            "AQUEDUCT_TLS_CERTIFICATE_FILE".to_string(),
+        )))?
     }
+    if config.subcommand.is_none() && config.tls_private_key_path.is_empty() {
+        Err(ConfigError::RequiredFieldEmpty((
+            "tls-private-key-file".to_string(),
+            "AQUEDUCT_TLS_PRIVATE_KEY_FILE".to_string(),
+        )))?
+    }
+    #[cfg(feature = "api")]
+    {
+        if config.subcommand.is_none() && config.jwt_refresh_private_key_path.is_empty() {
+            Err(ConfigError::RequiredFieldEmpty((
+                "jwt-refresh-private-key-file".to_string(),
+                "AQUEDUCT_JWT_REFRESH_PRIVATE_KEY_FILE".to_string(),
+            )))?
+        }
+        if config.subcommand.is_none() && config.jwt_refresh_public_key_path.is_empty() {
+            Err(ConfigError::RequiredFieldEmpty((
+                "jwt-refresh-public-key-file".to_string(),
+                "AQUEDUCT_JWT_REFRESH_PUBLIC_KEY_FILE".to_string(),
+            )))?
+        }
+        if config.subcommand.is_none() && config.jwt_access_private_key_path.is_empty() {
+            Err(ConfigError::RequiredFieldEmpty((
+                "jwt-access-private-key-file".to_string(),
+                "AQUEDUCT_JWT_ACCESS_PRIVATE_KEY_FILE".to_string(),
+            )))?
+        }
+        if config.subcommand.is_none() && config.jwt_access_public_key_path.is_empty() {
+            Err(ConfigError::RequiredFieldEmpty((
+                "jwt-access-public-key-file".to_string(),
+                "AQUEDUCT_JWT_ACCESS_PUBLIC_KEY_FILE".to_string(),
+            )))?
+        }
+    }
+
+    Ok(config)
 }
 
 fn parse_port_list(arg_string: &str) -> Result<Vec<u16>, ParseIntError> {

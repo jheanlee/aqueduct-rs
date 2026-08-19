@@ -90,7 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     //  database connection
     let mut db_connect_options = ConnectOptions::new(format!(
         "postgres://{}:{}@{}:{}/{}",
-        config.db_username, config.db_password, config.db_host, config.db_port, config.db_name
+        config.db_user, config.db_password, config.db_host, config.db_port, config.db_name
     ));
     db_connect_options.sqlx_logging(false);
     let db_connection = Database::connect(db_connect_options)
@@ -170,7 +170,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         config.tunnel_global_connection_limit as usize,
     ));
     let tunnel_status = Arc::new(TunnelStatus {
-        host: config.tunnel_host.ip().to_string(),
+        host: config.tunnel_bind_address.ip().to_string(),
         available_ports: RwLock::new(config.tunnel_allowed_ports),
         pending_external_clients: DashMap::new(),
         client_connection_limit: config.tunnel_client_connection_limit,
@@ -273,7 +273,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         });
 
         tokio::spawn(api_control(
-            config.api_host,
+            config.api_bind_address,
             api_state,
             cancellation_token.clone(),
         ))
@@ -288,7 +288,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     ));
 
     let tls_acceptor = TlsAcceptor::from(server_config);
-    let tcp_listener = TcpListener::bind(config.tunnel_host)
+    let tcp_listener = TcpListener::bind(config.tunnel_bind_address)
         .await
         .unwrap_or_else(|error| {
             error!("Unable to bind the control listener: {:?}", error);
@@ -308,7 +308,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         exit(1);
     });
 
-    warn!("Started listening on {}", config.tunnel_host.to_string());
+    warn!(
+        "Started listening on {}",
+        config.tunnel_bind_address.to_string()
+    );
 
     loop {
         select! {
