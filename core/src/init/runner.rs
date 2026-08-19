@@ -126,5 +126,7 @@ pub async fn initialize_database(db_connection: DatabaseConnection) -> Result<()
         whitelist ips: none"#
     );
 
+    warn!("IMPORTANT: please change the default password using the management web UI");
+
     Ok(())
 }

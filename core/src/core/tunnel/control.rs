@@ -70,7 +70,7 @@ pub async fn tunnel_client_control(
     let (control_tx, control_rx) = mpsc::channel::<Message>(1024);
     let mut control_rx = Some(control_rx);
     let control_message_sender_client =
-        ControlMessageSenderClient::new(control_tx, MESSAGE_VERSION_V1);
+        ControlMessageSenderClient::new(tunnel_client_addr, control_tx, MESSAGE_VERSION_V1);
 
     let mut authentication_timeout = Some(Instant::now() + Duration::from_millis(5000));
 

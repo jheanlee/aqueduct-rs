@@ -19,6 +19,7 @@ use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::model::Flags;
 use futures::SinkExt;
 use futures::stream::SplitSink;
+use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio::select;
@@ -32,13 +33,15 @@ use tracing::warn;
 
 #[derive(Clone)]
 pub struct ControlMessageSenderClient {
+    pub addr: SocketAddr,
     control_message_handler_tx: mpsc::Sender<Message>,
     message_version: u8,
 }
 
 impl ControlMessageSenderClient {
-    pub fn new(tx: mpsc::Sender<Message>, message_version: u8) -> Self {
+    pub fn new(addr: SocketAddr, tx: mpsc::Sender<Message>, message_version: u8) -> Self {
         ControlMessageSenderClient {
+            addr,
             control_message_handler_tx: tx,
             message_version,
         }

@@ -108,6 +108,12 @@ pub async fn api_control(
 
     match TcpListener::bind(api_host).await {
         Ok(api_listener) => {
+            warn!(
+                "API service listening on {}:{}",
+                api_host.ip(),
+                api_host.port()
+            );
+
             select! {
                 biased;
                 _ = cancellation_token.cancelled() => {}
