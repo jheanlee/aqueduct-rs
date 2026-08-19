@@ -19,7 +19,7 @@ use crate::orm::mikro_orm_migrations::{
     migration_version,
 };
 use sea_orm::DatabaseConnection;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 pub const BOOTSTRAP_SQL: &str =
     include_str!("../../../migration/src/migrations_raw_sql/bootstrap.sql");
