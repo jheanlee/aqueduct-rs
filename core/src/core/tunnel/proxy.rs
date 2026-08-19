@@ -44,6 +44,7 @@ use tokio::{io, select};
 use tokio_util::future::FutureExt;
 use tracing::{debug, info, instrument, warn};
 
+#[instrument(level = "info", skip_all, fields(tunnel_client = %control_message_sender_client.addr))]
 pub async fn tunnel_client_proxy_control(
     flags: Flags,
     tunnel_client_user_id: String,
@@ -88,7 +89,7 @@ pub async fn tunnel_client_proxy_control(
     }
 
     let Some(tcp_listener) = tcp_listener else {
-        warn!("No available ports");
+        warn!("No ports available");
         let _ = control_message_sender_client
             .send_message(MessageType::Error, "no ports available")
             .await;
@@ -119,7 +120,7 @@ pub async fn tunnel_client_proxy_control(
         flags.local_cancellation_token.cancel();
     }
 
-    info!("Tunnel port assigned, started listening on {}", port);
+    info!("Tunnel port assigned; listening on {}", port);
 
     //  accept external connections
     loop {
@@ -271,18 +272,15 @@ pub async fn tunnel_client_proxy(
                         match error.kind() {
                             ErrorKind::BrokenPipe => {
                                 //  often occurs under normal circumstances
-                                debug!("TCP proxying ended with BrokenPipe");
                             }
                             ErrorKind::ConnectionReset => {
                                 //  often occurs under normal circumstances
-                                debug!("TCP proxying ended with ConnectionReset");
                             }
                             ErrorKind::UnexpectedEof => {
                                 //  often occurs under normal circumstances
-                                debug!("TCP proxying ended with UnexpectedEof");
                             }
                             _ => {
-                                warn!("TCP proxying ended with error: {:?}", error);
+                                debug!("TCP proxying ended with error: {:?}", error);
                             }
                         }
                     }

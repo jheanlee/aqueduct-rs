@@ -19,7 +19,7 @@ use crate::orm::mikro_orm_migrations::{
     migration_version,
 };
 use sea_orm::DatabaseConnection;
-use tracing::{error, warn};
+use tracing::{error, info};
 
 pub const BOOTSTRAP_SQL: &str =
     include_str!("../../../migration/src/migrations_raw_sql/bootstrap.sql");
@@ -42,21 +42,21 @@ pub async fn migrate(db_connection: DatabaseConnection) -> Result<(), Error> {
         .and_then(|v| v.name.as_deref())
         == Some(LATEST_MIGRATION_VERSION)
     {
-        warn!("Database up to date. No changes applied");
+        info!("Database up to date. No changes applied");
         return Ok(());
     }
 
     let mut current_migration_version = match migration_version(latest_migration_record) {
         -1 => {
-            warn!("Invalid migration record in the database");
+            error!("Invalid migration record in the database");
             Err(Error::InvalidMigrationRecord)?
         }
         -2 => {
-            warn!("Record of a unknown migration version found in the database");
+            error!("Record of a unknown migration version found in the database");
             Err(Error::UnknownMigrationVersion)?
         }
         -3 => {
-            warn!(
+            error!(
                 "Record of (possibly) a future migration version found in the database. Please upgrade to a compatible version"
             );
             Err(Error::FutureMigrationVersion)?
@@ -90,6 +90,6 @@ pub async fn migrate(db_connection: DatabaseConnection) -> Result<(), Error> {
         Err(error)?;
     }
 
-    warn!("Migrated up to '{}'", LATEST_MIGRATION_VERSION);
+    info!("Migrated up to '{}'", LATEST_MIGRATION_VERSION);
     Ok(())
 }

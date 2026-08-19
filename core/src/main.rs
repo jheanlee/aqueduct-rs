@@ -42,7 +42,7 @@ use tokio::task::JoinSet;
 use tokio::time::timeout;
 use tokio_rustls::TlsAcceptor;
 use tokio_util::sync::CancellationToken;
-use tracing::{Instrument, error, info, info_span, warn};
+use tracing::{Instrument, debug, error, info, info_span, warn};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -308,10 +308,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         exit(1);
     });
 
-    warn!(
-        "Started listening on {}",
-        config.tunnel_bind_address.to_string()
-    );
+    info!("Listening on {}", config.tunnel_bind_address.to_string());
 
     loop {
         select! {
@@ -357,7 +354,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                         async move {
                             match timeout(Duration::from_millis(5000), tls_acceptor_clone.accept(stream)).await {
                                 Ok(Ok(tls_stream)) => {
-                                    info!("Session started");
+                                    debug!("Connection accepted");
 
                                     tunnel_client_control(
                                         Flags {
@@ -372,10 +369,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                                     ).await;
                                 }
                                 Ok(Err(error)) => {
-                                    warn!("TLS handshake failed: {:?}", error);
+                                    debug!("TLS handshake failed: {:?}", error);
                                 }
                                 Err(_) => {
-                                    warn!("TLS handshake timed out");
+                                    debug!("TLS handshake timed out");
                                 }
                             }
                         }
@@ -387,7 +384,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     }
 
     cancellation_token.cancel();
-    warn!("Exit signal received. Cleaning up");
+    info!("Shutdown signal received. Cleaning up");
     let _ = signal_handler_task.await;
     let _ = system_info_hot_task.await;
     let _ = system_info_cold_task.await;
@@ -397,7 +394,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     let _ = database_tunnel_status_task.await;
     let _ = pending_cleaner_task.await;
     tunnel_tasks.join_all().await;
-    warn!("Finished cleaning up");
+    info!("Shutdown complete");
 
     Ok(())
 }

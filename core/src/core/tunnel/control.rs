@@ -70,7 +70,7 @@ pub async fn tunnel_client_control(
     let (control_tx, control_rx) = mpsc::channel::<Message>(1024);
     let mut control_rx = Some(control_rx);
     let control_message_sender_client =
-        ControlMessageSenderClient::new(control_tx, MESSAGE_VERSION_V1);
+        ControlMessageSenderClient::new(tunnel_client_addr, control_tx, MESSAGE_VERSION_V1);
 
     let mut authentication_timeout = Some(Instant::now() + Duration::from_millis(5000));
 
@@ -185,7 +185,7 @@ pub async fn tunnel_client_control(
                         };
 
                         let Ok(user_id) = user_id else {
-                            warn!("Access denied");
+                            info!("Access denied");
 
                             let _ = control_message_sender_client.send_message(MessageType::Error, "access denied").await;
 
@@ -233,11 +233,11 @@ pub async fn tunnel_client_control(
 
                         //  get external connection with proxy id
                         let Some((_, proxy_client)) = tunnel_status.pending_external_clients.remove(&client_info.proxy_id) else {
-                            warn!("Proxy access denied");
+                            info!("Proxy access denied");
 
-                            let Some(tunnel_client_tx) = tunnel_client_writer.as_mut() else {
-                                unreachable!("tunnel_client_writer only taken when client_type is set");
-                            };
+                            let tunnel_client_tx = tunnel_client_writer
+                                .as_mut()
+                                .expect("tunnel_client_writer only taken when client_type is set");
 
                             let message = Message::new(MESSAGE_VERSION_V1, MessageType::Error, "access denied");
                             let mut write_buffer = BytesMut::with_capacity(256);
@@ -256,12 +256,12 @@ pub async fn tunnel_client_control(
                         };
 
                         //  ownership
-                        let Some(tunnel_client_writer) = tunnel_client_writer.take() else {
-                            unreachable!("tunnel_client_tx only taken when client_type is set");
-                        };
-                        let Some(tunnel_client_reader) = tunnel_client_reader.take() else {
-                            unreachable!("tunnel_client_rx only taken when client_type is set");
-                        };
+                        let tunnel_client_writer = tunnel_client_writer
+                            .take()
+                            .expect("tunnel_client_tx only taken when client_type is set");
+                        let tunnel_client_reader = tunnel_client_reader
+                            .take()
+                            .expect("tunnel_client_rx only taken when client_type is set");
 
                         //  proxy branch breaks out of the loop, no need to assign
                         // authentication_timeout = None;
@@ -306,7 +306,7 @@ pub async fn tunnel_client_control(
                         break;
                     }
                     MessageType::Error => {
-                        info!("Session ended with error: {}", str::from_utf8(&message.message_payload).unwrap_or("Invalid error payload"));
+                        debug!("Connection ended with error: {}", str::from_utf8(&message.message_payload).unwrap_or("Invalid error payload"));
                         flags.local_cancellation_token.cancel();
                         break;
                     }
@@ -350,7 +350,7 @@ pub async fn tunnel_client_control(
         let _ = framed.into_inner().shutdown().await;
     }
 
-    info!("Session ended");
+    debug!("Connection ended");
 }
 
 pub async fn tunnel_client_heartbeat(
@@ -429,7 +429,7 @@ async fn handle_bad_request_handler(
     flags: Flags,
     control_message_sender_client: ControlMessageSenderClient,
 ) {
-    warn!("Bad request");
+    debug!("Bad request");
 
     let _ = control_message_sender_client
         .send_message(MessageType::Error, "bad request")
@@ -448,7 +448,7 @@ async fn handle_bad_request_stream(
         unreachable!();
     };
 
-    warn!("Bad request");
+    debug!("Bad request");
 
     let message = Message::new(MESSAGE_VERSION_V1, MessageType::Error, "bad request");
 
