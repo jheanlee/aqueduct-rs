@@ -1,0 +1,50 @@
+services:
+    aqueduct:
+        image: jheanlee/aqueduct:latest
+        restart: unless-stopped
+
+        depends_on:
+            postgres:
+                condition: service_healthy
+
+        env_file:
+            - .env
+
+        environment:
+            - AQUEDUCT_DB_HOST=postgres
+            - AQUEDUCT_TLS_CERTIFICATE_FILE=/etc/aqueduct/tls/certificate.pem
+            - AQUEDUCT_TLS_PRIVATE_KEY_FILE=/etc/aqueduct/tls/private.pem
+            - AQUEDUCT_JWT_ACCESS_PRIVATE_KEY_FILE=/etc/aqueduct/jwt/access-private.pem
+            - AQUEDUCT_JWT_ACCESS_PUBLIC_KEY_FILE=/etc/aqueduct/jwt/access-public.pem
+            - AQUEDUCT_JWT_REFRESH_PRIVATE_KEY_FILE=/etc/aqueduct/jwt/refresh-private.pem
+            - AQUEDUCT_JWT_REFRESH_PUBLIC_KEY_FILE=/etc/aqueduct/jwt/refresh-public.pem
+
+        ports:
+            - "30330:30330"
+            - "30331:30331"
+            - "51000-51999:51000-51999"
+
+        volumes:
+            - ${AQUEDUCT_DOCKER_TLS_DIRECTORY}:/etc/aqueduct/tls:ro
+            - ${AQUEDUCT_DOCKER_JWT_DIRECTORY}:/etc/aqueduct/jwt:ro
+
+    postgres:
+        image: postgres:18
+        restart: unless-stopped
+
+        environment:
+            POSTGRES_DB: ${AQUEDUCT_DB_NAME}
+            POSTGRES_USER: ${AQUEDUCT_DB_USER}
+            POSTGRES_PASSWORD: ${AQUEDUCT_DB_PASSWORD}
+
+        volumes:
+            - postgres-data:/var/lib/postgresql
+
+        healthcheck:
+            test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} || exit 1" ]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+volumes:
+    postgres-data:
