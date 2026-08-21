@@ -11,7 +11,6 @@ services:
             - .env
 
         environment:
-            - AQUEDUCT_DB_HOST=postgres
             - AQUEDUCT_TLS_CERTIFICATE_FILE=/etc/aqueduct/tls/certificate.pem
             - AQUEDUCT_TLS_PRIVATE_KEY_FILE=/etc/aqueduct/tls/private.pem
             - AQUEDUCT_JWT_ACCESS_PRIVATE_KEY_FILE=/etc/aqueduct/jwt/access-private.pem
