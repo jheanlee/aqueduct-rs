@@ -4,8 +4,9 @@ bin
 target
 node_modules
 migration/dist
-/migration/src/migrations/.snapshot-*.json
-/migration/temp
+migration/src/migrations/.snapshot-*.json
+migration/temp
+docker/test
 
 .idea
 .DS_Store

@@ -26,8 +26,8 @@ RUN cargo build --release --locked
 
 FROM debian:trixie-slim
 
-WORKDIR /aqueduct
+COPY --from=rust-build /aqueduct/target/release/aqueduct /usr/local/bin/aqueduct
 
-COPY --from=rust-build /aqueduct/target/release/aqueduct .
+EXPOSE 30330 30331 51000-51999
 
-CMD ["./aqueduct"]
+ENTRYPOINT ["aqueduct"]
