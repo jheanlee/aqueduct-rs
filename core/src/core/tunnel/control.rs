@@ -332,8 +332,13 @@ pub async fn tunnel_client_control(
         let _ = task.await;
     }
 
+    let mut service_port = None;
     if let Some(task) = tunnel_client_proxy_control_task {
-        let _ = task.await;
+        let res = task.await;
+
+        if let Ok(Ok(port)) = res {
+            service_port = Some(port);
+        }
     }
 
     if let Some(task) = tunnel_control_message_sender_task {
@@ -348,6 +353,13 @@ pub async fn tunnel_client_control(
         );
         let _ = framed.flush().await;
         let _ = framed.into_inner().shutdown().await;
+        //  stream is dropped here
+    }
+
+    if let Some(service_port) = service_port {
+        let mut available_ports = tunnel_status.available_ports.write().await;
+        available_ports.push_back(service_port);
+        info!("Stopped listening on {service_port}; returned port to the pool");
     }
 
     debug!("Connection ended");

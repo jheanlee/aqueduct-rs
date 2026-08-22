@@ -216,12 +216,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         active_external_connection_count: Default::default(),
     });
 
-    let database_tunnel_status_task = tokio::spawn(database_tunnel_status_task(
-        db_connection.clone(),
-        tunnel_info.clone(),
-        cancellation_token.clone(),
-    ));
-
     //  api
     #[cfg(feature = "api")]
     let api_task = {
@@ -279,13 +273,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         ))
     };
 
-    //  tunnel
-    let mut tunnel_tasks = JoinSet::new();
+    //  database update
+    let database_tunnel_status_task = tokio::spawn(database_tunnel_status_task(
+        db_connection.clone(),
+        tunnel_info.clone(),
+        cancellation_token.clone(),
+    ));
     let database_tunnel_sessions_batch_task = tokio::spawn(database_tunnel_session_batch_task(
         shared.db_connection.clone(),
         database_tunnel_session_batch_rx,
         cancellation_token.clone(),
     ));
+
+    //  tunnel
+    let mut tunnel_tasks = JoinSet::new();
 
     let tls_acceptor = TlsAcceptor::from(server_config);
     let tcp_listener = TcpListener::bind(config.tunnel_bind_address)

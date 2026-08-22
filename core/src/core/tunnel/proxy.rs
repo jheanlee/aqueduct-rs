@@ -53,7 +53,7 @@ pub async fn tunnel_client_proxy_control(
     control_message_sender_client: ControlMessageSenderClient,
     tunnel_global_connection_semaphore: Arc<Semaphore>,
     cancellation_token: CancellationToken,
-) -> Result<(), TunnelError> {
+) -> Result<u16, TunnelError> {
     tunnel_info
         .active_service_count
         .fetch_add(1, Ordering::Relaxed);
@@ -78,13 +78,17 @@ pub async fn tunnel_client_proxy_control(
             && port_count > 0
         {
             port_count -= 1;
-            let Ok(new_tcp_listener) =
-                TcpListener::bind(format!("{}:{}", tunnel_status.host, new_port)).await
-            else {
-                available_ports.push_back(new_port);
-                continue;
-            };
-            tcp_listener = Some(new_tcp_listener);
+
+            let listener =
+                match TcpListener::bind(format!("{}:{}", tunnel_status.host, new_port)).await {
+                    Ok(listener) => listener,
+                    Err(error) => {
+                        debug!("Unable to bind tunnel port {new_port}: {error}");
+                        available_ports.push_back(new_port);
+                        continue;
+                    }
+                };
+            tcp_listener = Some(listener);
             break;
         }
     }
@@ -210,15 +214,14 @@ pub async fn tunnel_client_proxy_control(
         }
     }
 
-    let mut available_ports = tunnel_status.available_ports.write().await;
-    available_ports.push_back(port);
-
     tunnel_info
         .active_service_count
         .fetch_sub(1, Ordering::Relaxed);
 
-    //  fd closed on drop
-    Ok(())
+    //  fd closed in the tunnel control task
+    //  port returned in the tunnel control task
+
+    Ok(port)
 }
 
 #[instrument(skip_all, fields(proxy_client = %proxy_client.external_client_addr))]
