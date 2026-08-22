@@ -16,7 +16,6 @@
 use crate::core::message::common::MessageBuilder;
 use crate::core::message::types::{Message, MessageType};
 use crate::core::tunnel::error::TunnelError;
-use crate::core::tunnel::model::Flags;
 use futures::SinkExt;
 use futures::stream::SplitSink;
 use std::net::SocketAddr;
@@ -29,6 +28,7 @@ use tokio_rustls::server::TlsStream;
 use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 use tokio_util::future::FutureExt;
+use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 #[derive(Clone)]
@@ -64,16 +64,16 @@ impl ControlMessageSenderClient {
 }
 
 pub async fn tunnel_control_message_sender(
-    flags: Flags,
     mut control_rx: mpsc::Receiver<Message>,
     mut tunnel_client_tx: SplitSink<Framed<TlsStream<TcpStream>, LengthDelimitedCodec>, Bytes>,
+    cancellation_token: CancellationToken,
 ) {
     let mut write_buffer = BytesMut::with_capacity(256);
 
     while let Some(message) = select! {
         biased;
         message = control_rx.recv() => message,
-        _ = flags.local_cancellation_token.cancelled() => None
+        _ = cancellation_token.cancelled() => None
     } {
         if let Err(error) = MessageBuilder::encode(&message, &mut write_buffer) {
             warn!("Unable to encode message: {:?}", error);
@@ -90,7 +90,7 @@ pub async fn tunnel_control_message_sender(
             _ => {
                 tunnel_client_tx
                     .send(write_buffer.split().freeze())
-                    .with_cancellation_token_owned(flags.local_cancellation_token.clone())
+                    .with_cancellation_token(&cancellation_token)
                     .await
             }
         };
@@ -107,5 +107,5 @@ pub async fn tunnel_control_message_sender(
         }
     }
 
-    flags.local_cancellation_token.cancel();
+    cancellation_token.cancel();
 }

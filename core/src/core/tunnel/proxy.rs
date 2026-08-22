@@ -20,7 +20,7 @@ use crate::core::message::types::{ClientServiceMessage, MessageType};
 use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::error::TunnelError::NoPortsAvailable;
 use crate::core::tunnel::message_handler::ControlMessageSenderClient;
-use crate::core::tunnel::model::{Flags, ProxyClient, TunnelClient, TunnelStatus};
+use crate::core::tunnel::model::{ProxyClient, TunnelClient, TunnelStatus};
 use crate::core::tunnel::proxy_io::ProxyIO;
 use crate::orm::tunnel_session::DatabaseTunnelSessionAction;
 use base64::Engine;
@@ -42,16 +42,17 @@ use tokio::task::JoinSet;
 use tokio::time::{Instant, interval};
 use tokio::{io, select};
 use tokio_util::future::FutureExt;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, instrument, warn};
 
 #[instrument(level = "info", skip_all, fields(tunnel_client = %control_message_sender_client.addr))]
 pub async fn tunnel_client_proxy_control(
-    flags: Flags,
     tunnel_client_user_id: String,
     tunnel_status: Arc<TunnelStatus>,
     tunnel_info: Arc<TunnelInfo>,
     control_message_sender_client: ControlMessageSenderClient,
     tunnel_global_connection_semaphore: Arc<Semaphore>,
+    cancellation_token: CancellationToken,
 ) -> Result<(), TunnelError> {
     tunnel_info
         .active_service_count
@@ -98,7 +99,7 @@ pub async fn tunnel_client_proxy_control(
             .active_service_count
             .fetch_sub(1, Ordering::Relaxed);
 
-        flags.local_cancellation_token.cancel();
+        cancellation_token.cancel();
         Err(NoPortsAvailable)?
     };
 
@@ -117,7 +118,7 @@ pub async fn tunnel_client_proxy_control(
         .await
         .is_err()
     {
-        flags.local_cancellation_token.cancel();
+        cancellation_token.cancel();
     }
 
     info!("Tunnel port assigned; listening on {}", port);
@@ -126,7 +127,7 @@ pub async fn tunnel_client_proxy_control(
     loop {
         select! {
             biased;
-            _ = flags.local_cancellation_token.cancelled() => {
+            _ = cancellation_token.cancelled() => {
                 break;
             }
             _ = pending_permit_threads.join_next(), if !pending_permit_threads.is_empty() => {}
@@ -140,7 +141,7 @@ pub async fn tunnel_client_proxy_control(
                         }
 
                         let tunnel_status_clone = tunnel_status.clone();
-                        let local_cancellation_token_clone = flags.local_cancellation_token.clone();
+                        let local_cancellation_token_clone = cancellation_token.clone();
                         let global_semaphore_clone = tunnel_global_connection_semaphore.clone();
                         let client_semaphore_clone = client_semaphore.clone();
                         let tunnel_client_user_id_clone = tunnel_client_user_id.clone();
@@ -187,7 +188,8 @@ pub async fn tunnel_client_proxy_control(
                                     external_client_stream_tx,
                                     external_client_addr,
                                     _global_permit: global_permit,
-                                    _client_permit: client_permit
+                                    _client_permit: client_permit,
+                                    cancellation_token: local_cancellation_token_clone.child_token()
                                 }
                             );
 
@@ -200,7 +202,7 @@ pub async fn tunnel_client_proxy_control(
                     }
                     Err(error) => {
                         warn!("Unable to accept external connection: {:?}", error);
-                        flags.local_cancellation_token.cancel();
+                        cancellation_token.cancel();
                         break;
                     }
                 }
@@ -221,7 +223,6 @@ pub async fn tunnel_client_proxy_control(
 
 #[instrument(skip_all, fields(proxy_client = %proxy_client.external_client_addr))]
 pub async fn tunnel_client_proxy(
-    flags: Flags,
     shared: Shared,
     tunnel_client: TunnelClient,
     tunnel_info: Arc<TunnelInfo>,
@@ -256,13 +257,13 @@ pub async fn tunnel_client_proxy(
         BUFFER_SIZE,
         BUFFER_SIZE,
     )
-    .with_cancellation_token_owned(flags.local_cancellation_token.clone());
+    .with_cancellation_token(&proxy_client.cancellation_token);
 
     tokio::pin!(io_copy);
 
     loop {
         select! {
-            _ = flags.local_cancellation_token.cancelled() => {
+            _ = proxy_client.cancellation_token.cancelled() => {
                 break;
             }
             res = &mut io_copy => {
@@ -308,7 +309,7 @@ pub async fn tunnel_client_proxy(
         }
     }
 
-    flags.local_cancellation_token.cancel();
+    proxy_client.cancellation_token.cancel();
     debug!("TCP proxying ended");
 
     let _ = shared

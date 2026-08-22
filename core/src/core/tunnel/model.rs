@@ -28,11 +28,6 @@ pub enum ClientType {
     // Proxy,
 }
 
-#[derive(Clone)]
-pub struct Flags {
-    pub local_cancellation_token: CancellationToken,
-}
-
 pub struct TunnelClient {
     pub stream: TlsStream<TcpStream>,
     pub addr: SocketAddr,
@@ -53,4 +48,5 @@ pub struct ProxyClient {
     pub external_client_addr: SocketAddr,
     pub _global_permit: OwnedSemaphorePermit,
     pub _client_permit: OwnedSemaphorePermit,
+    pub cancellation_token: CancellationToken,
 }

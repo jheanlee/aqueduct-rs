@@ -25,7 +25,7 @@ use crate::core::tunnel::error::TunnelError;
 use crate::core::tunnel::message_handler::{
     ControlMessageSenderClient, tunnel_control_message_sender,
 };
-use crate::core::tunnel::model::{ClientType, Flags, TunnelClient, TunnelStatus};
+use crate::core::tunnel::model::{ClientType, TunnelClient, TunnelStatus};
 use crate::core::tunnel::proxy::{tunnel_client_proxy, tunnel_client_proxy_control};
 use crate::orm::tunnel_session::DatabaseTunnelSessionAction;
 use crate::orm::tunnel_user::{authenticate_tunnel_token, authenticate_tunnel_user};
@@ -44,16 +44,17 @@ use tokio_rustls::server::TlsStream;
 use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 use tokio_util::future::FutureExt;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
 pub async fn tunnel_client_control(
-    flags: Flags,
     shared: Shared,
     tunnel_client_stream: TlsStream<TcpStream>,
     tunnel_client_addr: SocketAddr,
     tunnel_status: Arc<TunnelStatus>,
     tunnel_info: Arc<TunnelInfo>,
     tunnel_global_connection_semaphore: Arc<Semaphore>,
+    cancellation_token: CancellationToken,
 ) {
     let mut client_type: Option<ClientType> = None;
 
@@ -98,22 +99,22 @@ pub async fn tunnel_client_control(
 
         select! {
             biased;
-            _ = flags.local_cancellation_token.cancelled() => {
+            _ = cancellation_token.cancelled() => {
                 break;
             },
             _auth_timedout = sleep_until(authentication_timeout.unwrap_or(Instant::now() + Duration::from_hours(10000))), if authentication_timeout.is_some() => {
-                flags.local_cancellation_token.cancel();
+                cancellation_token.cancel();
                 break;
             },
             result = read_future => {
                 let Ok(message) = result else {
                     match client_type {
                         Some(ClientType::Service) => {
-                            handle_bad_request_handler(flags.clone(), control_message_sender_client.clone()).await;
+                            handle_bad_request_handler(control_message_sender_client.clone(), &cancellation_token).await;
                         }
                         //  ClientType::Proxy impossible because the Proxy branch breaks out of the loop
                         None => {
-                            handle_bad_request_stream(flags.clone(), &mut tunnel_client_writer).await;
+                            handle_bad_request_stream(&mut tunnel_client_writer, &cancellation_token).await;
                         }
                     }
                     break;
@@ -125,7 +126,7 @@ pub async fn tunnel_client_control(
                     },
                     MessageType::Service => {
                         //  check if client is already a service connection
-                        if client_guard(&client_type, flags.clone(), control_message_sender_client.clone()).await.is_err() {
+                        if client_guard(&client_type, control_message_sender_client.clone(), &cancellation_token).await.is_err() {
                             break;
                         }
 
@@ -141,20 +142,20 @@ pub async fn tunnel_client_control(
                         //  unified sender for stream connection
                         tunnel_control_message_sender_task = Some(tokio::spawn(
                             tunnel_control_message_sender(
-                                flags.clone(),
                                 control_rx,
                                 tunnel_client_tx,
+                                cancellation_token.clone()
                             )
                         ));
 
                         //  validation and parsing
                         let Ok(payload_str) = str::from_utf8(&message.message_payload) else {
-                            handle_bad_request_stream(flags.clone(), &mut tunnel_client_writer).await;
+                            handle_bad_request_stream(&mut tunnel_client_writer, &cancellation_token).await;
                             break;
                         };
 
                         let Ok(service_message) = serde_json::from_str::<ServiceMessage>(payload_str) else {
-                            handle_bad_request_handler(flags.clone(), control_message_sender_client.clone()).await;
+                            handle_bad_request_handler(control_message_sender_client.clone(), &cancellation_token).await;
                             break;
                         };
 
@@ -189,7 +190,7 @@ pub async fn tunnel_client_control(
 
                             let _ = control_message_sender_client.send_message(MessageType::Error, "access denied").await;
 
-                            flags.local_cancellation_token.cancel();
+                            cancellation_token.cancel();
                             break;
                         };
 
@@ -198,36 +199,36 @@ pub async fn tunnel_client_control(
                         //  spawn tasks
                         tunnel_client_heartbeat_task = Some(
                             tokio::spawn(tunnel_client_heartbeat(
-                                flags.clone(),
                                 control_message_sender_client.clone(),
-                                (heartbeat_tx.clone(), heartbeat_rx.clone())
+                                (heartbeat_tx.clone(), heartbeat_rx.clone()),
+                                cancellation_token.clone()
                             ))
                         );
                         tunnel_client_proxy_control_task = Some(
                             tokio::spawn(tunnel_client_proxy_control(
-                                flags.clone(),
                                 user_id,
                                 tunnel_status.clone(),
                                 tunnel_info.clone(),
                                 control_message_sender_client.clone(),
-                                tunnel_global_connection_semaphore.clone()
+                                tunnel_global_connection_semaphore.clone(),
+                                cancellation_token.clone()
                             ))
                         );
                     }
                     MessageType::Proxy => {
                         //  check if client is already a service connection
-                        if client_guard(&client_type, flags.clone(), control_message_sender_client.clone()).await.is_err() {
+                        if client_guard(&client_type, control_message_sender_client.clone(), &cancellation_token).await.is_err() {
                             break;
                         }
 
                         //  validation and parsing
                         let Ok(payload_str) = str::from_utf8(&message.message_payload) else {
-                            handle_bad_request_stream(flags.clone(), &mut tunnel_client_writer).await;
+                            handle_bad_request_stream(&mut tunnel_client_writer, &cancellation_token).await;
                             break;
                         };
 
                         let Ok(client_info) = serde_json::from_str::<ProxyMessage>(payload_str) else {
-                            handle_bad_request_stream(flags.clone(), &mut tunnel_client_writer).await;
+                            handle_bad_request_stream(&mut tunnel_client_writer, &cancellation_token).await;
                             break;
                         };
 
@@ -248,10 +249,10 @@ pub async fn tunnel_client_control(
 
                             let _ = tunnel_client_tx
                                 .send(write_buffer.split().freeze())
-                                .with_cancellation_token_owned(flags.local_cancellation_token.clone())
+                                .with_cancellation_token(&cancellation_token)
                                 .await;
 
-                            flags.local_cancellation_token.cancel();
+                            cancellation_token.cancel();
                             break;
                         };
 
@@ -285,7 +286,6 @@ pub async fn tunnel_client_control(
                         //  spawn tasks
                         tunnel_client_proxy_task = Some(
                             tokio::spawn(tunnel_client_proxy(
-                                flags.clone(),
                                 shared.clone(),
                                 TunnelClient {
                                     stream: tunnel_client_writer.reunite(tunnel_client_reader).expect("`tunnel_client_writer` and `tunnel_client_reader` must be corresponding halves").into_inner(),
@@ -298,16 +298,16 @@ pub async fn tunnel_client_control(
                         break;
                     }
                     MessageType::Close => {
-                        flags.local_cancellation_token.cancel();
+                        cancellation_token.cancel();
                         break;
                     }
                     MessageType::Empty => {
-                        flags.local_cancellation_token.cancel();
+                        cancellation_token.cancel();
                         break;
                     }
                     MessageType::Error => {
                         debug!("Connection ended with error: {}", str::from_utf8(&message.message_payload).unwrap_or("Invalid error payload"));
-                        flags.local_cancellation_token.cancel();
+                        cancellation_token.cancel();
                         break;
                     }
                 }
@@ -354,20 +354,20 @@ pub async fn tunnel_client_control(
 }
 
 pub async fn tunnel_client_heartbeat(
-    flags: Flags,
     control_message_sender_client: ControlMessageSenderClient,
     (heartbeat_tx, mut heartbeat_rx): (watch::Sender<bool>, watch::Receiver<bool>),
+    cancellation_token: CancellationToken,
 ) {
     loop {
         //  wait for heartbeat
         let value = select! {
             biased;
-            _ = flags.local_cancellation_token.cancelled() => None,
+            _ = cancellation_token.cancelled() => None,
             heartbeat_changed = heartbeat_rx.changed() => {
                 if heartbeat_changed.is_ok() {
                     Some(*heartbeat_rx.borrow())
                 } else {
-                    flags.local_cancellation_token.cancel();
+                    cancellation_token.cancel();
                     None
                 }
             },
@@ -378,7 +378,7 @@ pub async fn tunnel_client_heartbeat(
         match value {
             Some(value) if value => {
                 tokio::time::sleep(TUNNEL_CLIENT_HEARTBEAT_TIMEOUT)
-                    .with_cancellation_token_owned(flags.local_cancellation_token.clone())
+                    .with_cancellation_token(&cancellation_token)
                     .await;
             }
             _ => {
@@ -394,7 +394,7 @@ pub async fn tunnel_client_heartbeat(
             .await
             .is_err()
         {
-            flags.local_cancellation_token.cancel();
+            cancellation_token.cancel();
             break;
         }
     }
@@ -402,12 +402,12 @@ pub async fn tunnel_client_heartbeat(
 
 async fn client_guard(
     client_type: &Option<ClientType>,
-    flags: Flags,
     control_message_sender_client: ControlMessageSenderClient,
+    cancellation_token: &CancellationToken,
 ) -> Result<(), ()> {
     match client_type {
         Some(ClientType::Service) => {
-            handle_bad_request_handler(flags.clone(), control_message_sender_client).await;
+            handle_bad_request_handler(control_message_sender_client, cancellation_token).await;
             Err(())
         }
         //  proxy branch breaks out of the loop, no need to check
@@ -418,7 +418,7 @@ async fn client_guard(
         //         "core::tunnel::control::tunnel_client_control",
         //     )
         //     .await;
-        //     flags.local_cancellation_token.cancel();
+        //     cancellation_token.cancel();
         //     Err(())
         // }
         None => Ok(()),
@@ -426,8 +426,8 @@ async fn client_guard(
 }
 
 async fn handle_bad_request_handler(
-    flags: Flags,
     control_message_sender_client: ControlMessageSenderClient,
+    cancellation_token: &CancellationToken,
 ) {
     debug!("Bad request");
 
@@ -435,14 +435,14 @@ async fn handle_bad_request_handler(
         .send_message(MessageType::Error, "bad request")
         .await;
 
-    flags.local_cancellation_token.cancel();
+    cancellation_token.cancel();
 }
 
 async fn handle_bad_request_stream(
-    flags: Flags,
     tunnel_client_tx: &mut Option<
         SplitSink<Framed<TlsStream<TcpStream>, LengthDelimitedCodec>, Bytes>,
     >,
+    cancellation_token: &CancellationToken,
 ) {
     let Some(tunnel_client_tx) = tunnel_client_tx else {
         unreachable!();
@@ -460,8 +460,8 @@ async fn handle_bad_request_stream(
 
     let _ = tunnel_client_tx
         .send(write_buffer.split().freeze())
-        .with_cancellation_token_owned(flags.local_cancellation_token.clone())
+        .with_cancellation_token(cancellation_token)
         .await;
 
-    flags.local_cancellation_token.cancel();
+    cancellation_token.cancel();
 }

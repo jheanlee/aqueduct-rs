@@ -22,7 +22,7 @@ use crate::config::args::Commands;
 use crate::config::config_handler::read_config;
 use crate::config::db_config_handler::read_db_config;
 use crate::core::tunnel::control::tunnel_client_control;
-use crate::core::tunnel::model::{Flags, TunnelStatus};
+use crate::core::tunnel::model::TunnelStatus;
 use crate::core::tunnel::pending_cleaner::pending_client_cleaner;
 use crate::orm::tunnel_session::database_tunnel_session_batch_task;
 use crate::system_info::collector::{SystemInfo, system_info_cold, system_info_hot};
@@ -357,15 +357,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                                     debug!("Connection accepted");
 
                                     tunnel_client_control(
-                                        Flags {
-                                            local_cancellation_token,
-                                        },
                                         shared_clone,
                                         tls_stream,
                                         client_addr,
                                         tunnel_status_clone,
                                         tunnel_info_clone,
-                                        global_connection_semaphore_clone
+                                        global_connection_semaphore_clone,
+                                        local_cancellation_token
                                     ).await;
                                 }
                                 Ok(Err(error)) => {
