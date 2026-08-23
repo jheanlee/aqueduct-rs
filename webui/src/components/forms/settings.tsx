@@ -88,13 +88,22 @@ export const SettingsForm = () => {
       .filter((str) => str.length > 0);
 
     //  validation
-    if (!blacklist.every((block) => normalizeCidr(block) === block)) {
+    try {
+      if (!blacklist.every((block) => normalizeCidr(block) === block)) {
+        form.setError("blacklist", { message: "Invalid CIDR block." });
+        return;
+      }
+    } catch {
       form.setError("blacklist", { message: "Invalid CIDR block." });
       return;
     }
-    if (!whitelist.every((block) => normalizeCidr(block) === block)) {
+    try {
+      if (!whitelist.every((block) => normalizeCidr(block) === block)) {
+        form.setError("whitelist", { message: "Invalid CIDR block." });
+        return;
+      }
+    } catch {
       form.setError("whitelist", { message: "Invalid CIDR block." });
-      return;
     }
 
     for (let i = 0; i < whitelist.length; i++) {
