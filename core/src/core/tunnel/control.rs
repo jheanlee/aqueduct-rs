@@ -32,6 +32,7 @@ use crate::orm::tunnel_user::{authenticate_tunnel_token, authenticate_tunnel_use
 use chrono::Utc;
 use futures::stream::SplitSink;
 use futures::{SinkExt, StreamExt};
+use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -107,18 +108,22 @@ pub async fn tunnel_client_control(
                 break;
             },
             result = read_future => {
-                let Ok(message) = result else {
-                    match client_type {
-                        Some(ClientType::Service) => {
-                            handle_bad_request_handler(control_message_sender_client.clone(), &cancellation_token).await;
-                        }
-                        //  ClientType::Proxy impossible because the Proxy branch breaks out of the loop
-                        None => {
-                            handle_bad_request_stream(&mut tunnel_client_writer, &cancellation_token).await;
-                        }
+                let message = match result {
+                    Ok(message) => message,
+                    Err(TunnelError::ClientClosed) => {
+                        debug!("Connection closed by client");
+                        break;
                     }
-                    break;
+                    Err(TunnelError::IoError(error)) if matches!(error.kind(), ErrorKind::BrokenPipe | ErrorKind::ConnectionReset | ErrorKind::UnexpectedEof) => {
+                        debug!("Connection closed: {}", error.kind());
+                        break;
+                    }
+                    Err(error) => {
+                        debug!("Connection terminated: {:?}", error);
+                        break;
+                    }
                 };
+
                 match message.message_type {
                     MessageType::Heartbeat => {
                         debug!("Heartbeat received");
@@ -306,7 +311,7 @@ pub async fn tunnel_client_control(
                         break;
                     }
                     MessageType::Error => {
-                        debug!("Connection ended with error: {}", str::from_utf8(&message.message_payload).unwrap_or("Invalid error payload"));
+                        debug!("Connection terminated with error: {}", str::from_utf8(&message.message_payload).unwrap_or("Invalid error payload"));
                         cancellation_token.cancel();
                         break;
                     }

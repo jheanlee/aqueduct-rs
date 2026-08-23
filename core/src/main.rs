@@ -383,7 +383,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     }
 
     cancellation_token.cancel();
-    info!("Shutdown signal received. Cleaning up");
+    info!("Shutting down");
+
+    drop(tcp_listener);
+    info!(
+        "Stopped listening on {}",
+        config.tunnel_bind_address.to_string()
+    );
+
     let _ = signal_handler_task.await;
     let _ = system_info_hot_task.await;
     let _ = system_info_cold_task.await;

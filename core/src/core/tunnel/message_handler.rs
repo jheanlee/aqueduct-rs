@@ -29,7 +29,7 @@ use tokio_util::bytes::{Bytes, BytesMut};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 use tokio_util::future::FutureExt;
 use tokio_util::sync::CancellationToken;
-use tracing::warn;
+use tracing::{debug, warn};
 
 #[derive(Clone)]
 pub struct ControlMessageSenderClient {
@@ -82,7 +82,7 @@ pub async fn tunnel_control_message_sender(
 
         let result = match message.message_type {
             MessageType::Error | MessageType::Close => timeout(
-                Duration::from_millis(200),
+                Duration::from_millis(1000),
                 tunnel_client_tx.send(write_buffer.split().freeze()),
             )
             .await
@@ -98,7 +98,7 @@ pub async fn tunnel_control_message_sender(
         match result {
             Some(Ok(_)) => {}
             Some(Err(error)) => {
-                warn!("Unable to send message to client: {:?}", error);
+                debug!("Unable to send message to client: {:?}", error);
                 break;
             }
             None => {

@@ -119,10 +119,12 @@ pub async fn api_control(
                 _ = cancellation_token.cancelled() => {}
                 serve_result = axum::serve(api_listener, api) => {
                     if let Err(error) = serve_result {
-                        error!("Failed to start api services: {:?}", error);
+                        error!("Failed to start API services: {:?}", error);
                     }
                 }
             }
+
+            info!("API service stopped");
         }
         Err(error) => {
             error!("Failed to start api services: {:?}", error);
