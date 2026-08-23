@@ -31,25 +31,16 @@ pub async fn initialize_database(db_connection: DatabaseConnection) -> Result<()
         Ok(value) => value,
         Err(crate::orm::error::Error::Database(sea_orm::DbErr::Query(
             sea_orm::RuntimeErr::SqlxError(error),
-        ))) => match error.as_ref() {
-            sea_orm::sqlx::Error::Database(db_err) => match db_err.code() {
-                Some(code) if code == "42P01" => None,
-                _ => {
-                    let error = Err(crate::orm::error::Error::Database(sea_orm::DbErr::Query(
-                        sea_orm::RuntimeErr::SqlxError(error),
-                    )));
-                    error!("{:?}", error);
-                    error?
-                }
-            },
-            _ => {
-                let error = Err(crate::orm::error::Error::Database(sea_orm::DbErr::Query(
-                    sea_orm::RuntimeErr::SqlxError(error),
-                )));
-                error!("{:?}", error);
-                error?
-            }
-        },
+        ))) if matches!(
+            error.as_ref(),
+            sea_orm::sqlx::Error::Database(db_err) if matches!(
+                db_err.code().as_deref(),
+                Some("42P01")
+            )
+        ) =>
+        {
+            None
+        }
         Err(error) => {
             error!("{error}");
             Err(error)?
