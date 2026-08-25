@@ -63,7 +63,7 @@ mod orm;
 mod system_info;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+async fn main() {
     let _ = dotenv::dotenv();
     let config = read_config().unwrap_or_else(|error| {
         println!("{}", error);
@@ -142,7 +142,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         });
 
     //  tls credentials
-    let cert = CertificateDer::pem_file_iter(config.tls_cert_path)?
+    let cert = CertificateDer::pem_file_iter(config.tls_cert_path)
+        .unwrap_or_else(|error| {
+            error!("Unable to retrieve the TLS certificate: {:?}", error);
+            exit(1);
+        })
         .collect::<Result<Vec<_>, _>>()
         .unwrap_or_else(|error| {
             error!("Unable to retrieve the TLS certificate: {:?}", error);
@@ -401,6 +405,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     let _ = pending_cleaner_task.await;
     tunnel_tasks.join_all().await;
     info!("Shutdown complete");
-
-    Ok(())
 }
