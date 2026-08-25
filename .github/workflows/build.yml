@@ -6,21 +6,25 @@ on:
     pull_request:
         branches: [ "master" ]
 
+concurrency:
+    group: ${{ github.head_ref || github.ref }}
+    cancel-in-progress: true
+
 permissions:
     contents: read
 
 jobs:
     build:
-        name: Build Binary (${{ matrix.os }})
-        runs-on: ${{ matrix.os }}
+        name: Build Binary (${{ matrix.platform.artifact }})
+        runs-on: ${{ matrix.platform.os }}
         strategy:
             fail-fast: false
             matrix:
-                os:
-                    - ubuntu-latest
-                    - ubuntu-24.04-arm
-                    - macos-latest
-                    - macos-26-intel
+                platform:
+                    - { artifact: linux-glibc-amd64, os: ubuntu-22.04 }
+                    - { artifact: linux-glibc-arm64, os: ubuntu-22.04-arm }
+                    - { artifact: darwin-amd64, os: macos-15-intel }
+                    - { artifact: darwin-arm64, os: macos-15 }
         steps:
             -   name: Checkout
                 uses: actions/checkout@v7
@@ -56,6 +60,16 @@ jobs:
                 env:
                     RUSTFLAGS: "-D warnings"
                 run: cargo build --release --locked
+
+            -   name: Prepare artifact
+                run: cp target/release/aqueduct "aqueduct-${{ matrix.platform.artifact }}-${{ github.sha }}"
+
+            -   name: Upload artifact
+                uses: actions/upload-artifact@v7
+                with:
+                    name: aqueduct-${{ matrix.platform.artifact }}-${{ github.sha }}
+                    path: aqueduct-${{ matrix.platform.artifact }}-${{ github.sha }}
+                    retention-days: 1
 
     build_docker:
         name: Build Docker (${{ matrix.platform.arch }})
