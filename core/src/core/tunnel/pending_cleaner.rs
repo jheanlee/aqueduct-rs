@@ -19,21 +19,28 @@ use std::time::Duration;
 use tokio::select;
 use tokio::time::{Instant, sleep};
 use tokio_util::sync::CancellationToken;
+use tracing::debug;
 
 pub async fn pending_client_cleaner(
     cancellation_token: CancellationToken,
     tunnel_status: Arc<TunnelStatus>,
 ) {
+    const CLEAN_INTERVAL: Duration = Duration::from_secs(60);
+
     loop {
         select! {
             biased;
             _ = cancellation_token.cancelled() => {
                 return;
             }
-            _ = sleep(Duration::from_secs(60)) => {
-                let deadline = Instant::now() - Duration::from_secs(60);
-                tunnel_status.pending_external_clients.retain(|_, value| value.timestamp > deadline);
+            _ = sleep(CLEAN_INTERVAL) => {
+                let deadline = Instant::now() - CLEAN_INTERVAL;
+                tunnel_status.pending_external_clients.retain(|_, value| value.timestamp > deadline && !value.cancellation_token.is_cancelled());
             }
         }
+        debug!(
+            "Pending external clients: {}",
+            tunnel_status.pending_external_clients.len()
+        );
     }
 }

@@ -69,16 +69,18 @@ async fn add_blacklist(
     let res = Entity::insert_many(models).exec(db_connection).await;
     match res {
         Ok(_) => Ok(()),
-        Err(DbErr::Query(RuntimeErr::SqlxError(error))) => match error.as_ref() {
-            sqlx::Error::Database(db_err) => match db_err.code() {
-                Some(code) if code == "23P01" => Err(Error::BadRequest)?,
-                Some(code) if code == "23505" => Err(Error::BadRequest)?,
-                Some(code) if code == "23503" => Err(Error::BadRequest)?,
-                _ => Err(DbErr::Query(RuntimeErr::SqlxError(error)))?,
-            },
-            _ => Err(DbErr::Query(RuntimeErr::SqlxError(error)))?,
-        },
-        Err(error) => Err(error)?,
+        Err(DbErr::Query(RuntimeErr::SqlxError(error)))
+            if matches!(
+                error.as_ref(),
+                sqlx::Error::Database(db_err) if matches!(
+                    db_err.code().as_deref(),
+                    Some("23P01" | "23505" | "23503")
+                )
+            ) =>
+        {
+            Err(Error::BadRequest)
+        }
+        Err(error) => Err(error.into()),
     }
 }
 

@@ -22,7 +22,7 @@ use crate::config::args::Commands;
 use crate::config::config_handler::read_config;
 use crate::config::db_config_handler::read_db_config;
 use crate::core::tunnel::control::tunnel_client_control;
-use crate::core::tunnel::model::{Flags, TunnelStatus};
+use crate::core::tunnel::model::TunnelStatus;
 use crate::core::tunnel::pending_cleaner::pending_client_cleaner;
 use crate::orm::tunnel_session::database_tunnel_session_batch_task;
 use crate::system_info::collector::{SystemInfo, system_info_cold, system_info_hot};
@@ -216,12 +216,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         active_external_connection_count: Default::default(),
     });
 
-    let database_tunnel_status_task = tokio::spawn(database_tunnel_status_task(
-        db_connection.clone(),
-        tunnel_info.clone(),
-        cancellation_token.clone(),
-    ));
-
     //  api
     #[cfg(feature = "api")]
     let api_task = {
@@ -279,13 +273,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         ))
     };
 
-    //  tunnel
-    let mut tunnel_tasks = JoinSet::new();
+    //  database update
+    let database_tunnel_status_task = tokio::spawn(database_tunnel_status_task(
+        db_connection.clone(),
+        tunnel_info.clone(),
+        cancellation_token.clone(),
+    ));
     let database_tunnel_sessions_batch_task = tokio::spawn(database_tunnel_session_batch_task(
         shared.db_connection.clone(),
         database_tunnel_session_batch_rx,
         cancellation_token.clone(),
     ));
+
+    //  tunnel
+    let mut tunnel_tasks = JoinSet::new();
 
     let tls_acceptor = TlsAcceptor::from(server_config);
     let tcp_listener = TcpListener::bind(config.tunnel_bind_address)
@@ -357,15 +358,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
                                     debug!("Connection accepted");
 
                                     tunnel_client_control(
-                                        Flags {
-                                            local_cancellation_token,
-                                        },
                                         shared_clone,
                                         tls_stream,
                                         client_addr,
                                         tunnel_status_clone,
                                         tunnel_info_clone,
-                                        global_connection_semaphore_clone
+                                        global_connection_semaphore_clone,
+                                        local_cancellation_token
                                     ).await;
                                 }
                                 Ok(Err(error)) => {
@@ -384,7 +383,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     }
 
     cancellation_token.cancel();
-    info!("Shutdown signal received. Cleaning up");
+    info!("Shutting down");
+
+    drop(tcp_listener);
+    info!(
+        "Stopped listening on {}",
+        config.tunnel_bind_address.to_string()
+    );
+
     let _ = signal_handler_task.await;
     let _ = system_info_hot_task.await;
     let _ = system_info_cold_task.await;
