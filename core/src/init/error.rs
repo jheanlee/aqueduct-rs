@@ -15,6 +15,7 @@
  */
 use std::fmt::Formatter;
 
+#[derive(Debug)]
 pub enum Error {
     Database(crate::orm::error::Error),
     DatabaseNotInitialized,
@@ -48,6 +49,8 @@ impl std::fmt::Display for Error {
         }
     }
 }
+
+impl std::error::Error for Error {}
 
 impl From<crate::orm::error::Error> for Error {
     fn from(value: crate::orm::error::Error) -> Self {
