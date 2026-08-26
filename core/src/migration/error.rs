@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-use std::fmt::Formatter;
+use std::fmt::{Debug, Formatter};
 
+#[derive(Debug)]
 pub enum Error {
     Database(crate::orm::error::Error),
     MigrationExec(sqlx::Error),
@@ -40,6 +41,8 @@ impl std::fmt::Display for Error {
         }
     }
 }
+
+impl std::error::Error for Error {}
 
 impl From<sqlx::Error> for Error {
     fn from(value: sqlx::Error) -> Self {

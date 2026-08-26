@@ -32,7 +32,6 @@ use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use sea_orm::{ConnectOptions, Database};
 use socket2::{SockRef, TcpKeepalive};
-use std::process::exit;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
@@ -63,12 +62,15 @@ mod orm;
 mod system_info;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), DisplayError<Box<dyn std::error::Error + Send + Sync + 'static>>> {
+    inner_main().await.map_err(DisplayError)
+}
+
+async fn inner_main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     let _ = dotenv::dotenv();
-    let config = read_config().unwrap_or_else(|error| {
+    let config = read_config().inspect_err(|error| {
         println!("{}", error);
-        exit(1);
-    });
+    })?;
     let cancellation_token = CancellationToken::new();
 
     // crypto
@@ -95,75 +97,68 @@ async fn main() {
     db_connect_options.sqlx_logging(false);
     let db_connection = Database::connect(db_connect_options)
         .await
-        .unwrap_or_else(|error| {
+        .inspect_err(|error| {
             error!("Unable to connect to the database: {:?}", error);
-            exit(1);
-        });
+        })?;
 
     //  subcommands
     match config.subcommand {
         #[cfg(feature = "migration")]
-        Some(Commands::Migrate(args)) => match args.mode {
-            MigrationModes::Up => {
-                use crate::migration::runner::migrate;
-                let result = migrate(db_connection).await;
-                match result {
-                    Ok(_) => exit(0),
-                    Err(_) => exit(1),
+        Some(Commands::Migrate(args)) => {
+            return match args.mode {
+                MigrationModes::Up => {
+                    use crate::migration::runner::migrate;
+                    let result = migrate(db_connection).await;
+                    match result {
+                        Ok(_) => Ok(()),
+                        Err(error) => Err(error.into()),
+                    }
                 }
-            }
-        },
+            };
+        }
         Some(Commands::Init) => {
             let result = initialize_database(db_connection).await;
-            match result {
-                Ok(_) => exit(0),
-                Err(_) => exit(1),
-            }
+            return match result {
+                Ok(_) => Ok(()),
+                Err(error) => Err(error.into()),
+            };
         }
         None => {} // _ => unreachable!(),
     }
 
     //  retrieve configuration stored in the database
-    let db_config = read_db_config(&db_connection)
-        .await
-        .unwrap_or_else(|error| {
-            error!("{}", error);
-            exit(1);
-        });
+    let db_config = read_db_config(&db_connection).await.inspect_err(|error| {
+        error!("{}", error);
+    })?;
 
     //  whitelist and blacklist
     let whitelist = Arc::new(RwLock::new(IpNetworkTable::new()));
     let blacklist = Arc::new(RwLock::new(IpNetworkTable::new()));
     update_access_ip_tables(&db_connection, whitelist.clone(), blacklist.clone())
         .await
-        .unwrap_or_else(|error| {
+        .inspect_err(|error| {
             error!("{}", error);
-            exit(1);
-        });
+        })?;
 
     //  tls credentials
     let cert = CertificateDer::pem_file_iter(config.tls_cert_path)
-        .unwrap_or_else(|error| {
+        .inspect_err(|error| {
             error!("Unable to retrieve the TLS certificate: {:?}", error);
-            exit(1);
-        })
+        })?
         .collect::<Result<Vec<_>, _>>()
-        .unwrap_or_else(|error| {
+        .inspect_err(|error| {
             error!("Unable to retrieve the TLS certificate: {:?}", error);
-            exit(1);
-        });
-    let key = PrivateKeyDer::from_pem_file(config.tls_private_key_path).unwrap_or_else(|error| {
+        })?;
+    let key = PrivateKeyDer::from_pem_file(config.tls_private_key_path).inspect_err(|error| {
         error!("Unable to retrieve the TLS private key: {:?}", error);
-        exit(1);
-    });
+    })?;
     let server_config = Arc::new(
         rustls::ServerConfig::builder()
             .with_no_client_auth()
             .with_single_cert(cert, key)
-            .unwrap_or_else(|error| {
+            .inspect_err(|error| {
                 error!("TLS config error: {:?}", error);
-                exit(1);
-            }),
+            })?,
     );
 
     //  auth
@@ -227,36 +222,28 @@ async fn main() {
         use crate::api::jwt::key::init_jwt_keys;
         use tokio::time::Instant;
 
-        let refresh_token_keys = match init_jwt_keys(
+        let refresh_token_keys = init_jwt_keys(
             config.jwt_refresh_private_key_path,
             config.jwt_refresh_public_key_path,
         )
         .await
-        {
-            Ok(keys) => keys,
-            Err(error) => {
-                error!(
-                    "Unable to initialise refresh token signing keys: {:?}",
-                    error
-                );
-                exit(1);
-            }
-        };
-        let access_token_keys = match init_jwt_keys(
+        .inspect_err(|error| {
+            error!(
+                "Unable to initialise refresh token signing keys: {:?}",
+                error
+            );
+        })?;
+        let access_token_keys = init_jwt_keys(
             config.jwt_access_private_key_path,
             config.jwt_access_public_key_path,
         )
         .await
-        {
-            Ok(keys) => keys,
-            Err(error) => {
-                error!(
-                    "Unable to initialise refresh token signing keys: {:?}",
-                    error
-                );
-                exit(1);
-            }
-        };
+        .inspect_err(|error| {
+            error!(
+                "Unable to initialise refresh token signing keys: {:?}",
+                error
+            );
+        })?;
 
         let api_state = Arc::new(ApiState {
             start_time: Instant::now(),
@@ -295,23 +282,19 @@ async fn main() {
     let tls_acceptor = TlsAcceptor::from(server_config);
     let tcp_listener = TcpListener::bind(config.tunnel_bind_address)
         .await
-        .unwrap_or_else(|error| {
+        .inspect_err(|error| {
             error!("Unable to bind the control listener: {:?}", error);
-            exit(1);
-        });
+        })?;
     let socket = SockRef::from(&tcp_listener);
-    socket.listen(4096).unwrap_or_else(|error| {
+    socket.listen(4096).inspect_err(|error| {
         error!("Unable to configure the control listener: {:?}", error);
-        exit(1);
-    });
-    socket.set_reuse_address(true).unwrap_or_else(|error| {
+    })?;
+    socket.set_reuse_address(true).inspect_err(|error| {
         error!("Unable to configure the control listener: {:?}", error);
-        exit(1);
-    });
-    socket.set_tcp_nodelay(true).unwrap_or_else(|error| {
+    })?;
+    socket.set_tcp_nodelay(true).inspect_err(|error| {
         error!("Unable to configure the control listener: {:?}", error);
-        exit(1);
-    });
+    })?;
 
     info!("Listening on {}", config.tunnel_bind_address.to_string());
 
@@ -330,9 +313,9 @@ async fn main() {
                         .with_time(Duration::from_secs(60))
                         .with_interval(Duration::from_secs(30))
                         .with_retries(3);
-                    socket_ref.set_tcp_keepalive(&socket_keep_alive).unwrap_or_else(|error| {
+                    if let Err(error) = socket_ref.set_tcp_keepalive(&socket_keep_alive) {
                         warn!("Unable to configure socket: {:?}", error);
-                    });
+                    };
 
                     //  whitelist & blacklist
                     if db_config.whitelist && whitelist.read().await.matches(client_addr.ip()).count() == 0 {
@@ -405,4 +388,19 @@ async fn main() {
     let _ = pending_cleaner_task.await;
     tunnel_tasks.join_all().await;
     info!("Shutdown complete");
+
+    Ok(())
 }
+
+struct DisplayError<E>(E);
+impl<E: std::fmt::Display> std::fmt::Debug for DisplayError<E> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
+    }
+}
+impl<E: std::fmt::Display> std::fmt::Display for DisplayError<E> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+impl<E: std::error::Error> std::error::Error for DisplayError<E> {}
